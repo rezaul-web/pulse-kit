@@ -6,14 +6,17 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import io.pulsekit.android.PulseAndroid
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,9 +27,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import io.pulsekit.android.PulseAndroid
 import io.pulsekit.runtime.Pulse
+import io.pulsekit.sample.ui.theme.PulseKitTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -38,11 +45,15 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         ensureNotificationPermission()
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            PulseKitTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
                     SampleScreen()
                 }
             }
@@ -65,12 +76,48 @@ class MainActivity : ComponentActivity() {
 private fun SampleScreen() {
     var taps by remember { mutableIntStateOf(0) }
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("PulseKit is running", style = MaterialTheme.typography.headlineSmall)
-        Text("Custom events tracked: $taps", modifier = Modifier.padding(top = 8.dp))
+        Text(
+            text = "PulseKit",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = "Profiling SDK — sample app",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 32.dp),
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = "$taps",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                Text(
+                    text = "custom events tracked",
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
         Button(
             onClick = {
                 taps++
@@ -78,13 +125,23 @@ private fun SampleScreen() {
             },
             modifier = Modifier.padding(top = 24.dp),
         ) {
-            Text("Track an event")
+            Text("Track an event", style = MaterialTheme.typography.labelLarge)
         }
     }
 }
 
-@Preview(showBackground = true)
+@Preview(name = "Light", showBackground = true)
 @Composable
-private fun SampleScreenPreview() {
-    MaterialTheme { SampleScreen() }
+private fun SampleScreenLightPreview() {
+    PulseKitTheme(darkTheme = false, dynamicColor = false) {
+        Surface(color = MaterialTheme.colorScheme.background) { SampleScreen() }
+    }
+}
+
+@Preview(name = "Dark", showBackground = true)
+@Composable
+private fun SampleScreenDarkPreview() {
+    PulseKitTheme(darkTheme = true, dynamicColor = false) {
+        Surface(color = MaterialTheme.colorScheme.background) { SampleScreen() }
+    }
 }

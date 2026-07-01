@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- PulseKit dashboard palette (light). Mirrors the Material 3 brand tokens
+         used by the sample's Compose theme. Dark variants: values-night/colors.xml. -->
+    <color name="pulse_background">#FBFCFE</color>
+    <color name="pulse_surface">#FFFFFF</color>
+    <color name="pulse_on_surface">#191C1E</color>
+    <color name="pulse_on_surface_variant">#41484D</color>
+    <color name="pulse_on_surface_muted">#71787E</color>
+    <color name="pulse_primary">#00668B</color>
+</resources>

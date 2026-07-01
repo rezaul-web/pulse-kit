@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Window theme applied before Compose takes over. Edge-to-edge with
+         transparent system bars; Compose (PulseKitTheme) owns all in-app color.
+         The dark variant lives in values-night/themes.xml. -->
+    <style name="Theme.PulseKitSample" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/pulse_window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">shortEdges</item>
+    </style>
+</resources>

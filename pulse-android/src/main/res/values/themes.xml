@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Theme for PulseDashboardActivity. DayNight via the values-night override;
+         edge-to-edge with transparent system bars. Kept lightweight (platform
+         parent) so the library pulls no Material Components dependency. -->
+    <style name="Theme.PulseKit.Dashboard" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/pulse_background</item>
+        <item name="android:colorPrimary">@color/pulse_primary</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

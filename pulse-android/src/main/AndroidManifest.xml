@@ -20,6 +20,7 @@
             android:label="PulseKit"
             android:launchMode="singleTask"
             android:taskAffinity="io.pulsekit.dashboard"
-            android:excludeFromRecents="false" />
+            android:excludeFromRecents="false"
+            android:theme="@style/Theme.PulseKit.Dashboard" />
     </application>
 </manifest>

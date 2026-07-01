@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pulse_background">#191C1E</color>
+    <color name="pulse_surface">#1E2427</color>
+    <color name="pulse_on_surface">#E1E2E5</color>
+    <color name="pulse_on_surface_variant">#C1C7CE</color>
+    <color name="pulse_on_surface_muted">#8B9198</color>
+    <color name="pulse_primary">#7DD0FF</color>
+</resources>
