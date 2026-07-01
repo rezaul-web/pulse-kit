@@ -37,7 +37,8 @@ All under `pulse-android/src/main/kotlin/io/pulsekit/android/`:
 |---|---|
 | `ui/PulseDashboardActivity.kt` | Thin `ComponentActivity`. Applies `PulseTheme`, goes edge-to-edge, hosts `PulseDashboard(onClose = ::finish)`. No UI logic. |
 | `ui/PulseDashboard*`… `PulseDashboardScreen.kt` | **Stateful host** `PulseDashboard()` (collects live stats, owns selection + `Scaffold`) and the stateless UI: `PanelGrid`, `PanelTile`, `Badge`, `PanelDetail`, `PropertyRow`, `EmptyPanel`. Layout constants in `DashboardDefaults`. |
-| `ui/DashboardTopBars.kt` | `DashboardTopBar` (collapsing `LargeTopAppBar`) and `DetailTopBar` (`TopAppBar` with a "Copy properties" overflow). |
+| `ui/DashboardTopBars.kt` | `DashboardTopBar` (collapsing `LargeTopAppBar`) and `DetailTopBar` (`TopAppBar` with a "Copy properties" overflow). Both use the colorful `primaryContainer`. |
+| `ui/DashboardNavKeys.kt` | **Navigation 3** destination keys: `HomeKey`, `PanelKey(panelId)` — `@Serializable` `NavKey`s. |
 | `ui/DashboardModel.kt` | Domain model (`PulsePanel`, `PulseProperty`, `LiveStats`), the `LiveStats.reduce()` reducer, `buildPanels()`, and the per-panel data providers. |
 | `ui/theme/PulseTheme.kt` | Material 3 brand `ColorScheme` (light + dark). No dynamic color. |
 | `res/drawable/ic_pulse_dashboard.xml` | The PulseKit logo (used by the notification and the grid top bar). |
@@ -70,8 +71,8 @@ LiveStats.reduce(event)  ──▶  var stats: LiveStats   (eventCount, lastEven
 - **`buildPanels()`** is called on each recomposition. It folds the current
   `stats` snapshot into the panel list. It's cheap; no memoization needed. Static
   reads (App Info, Device) are recomputed but negligible for a debug screen.
-- **Selection** is a single `rememberSaveable` `selectedId: String?`. `null` = grid,
-  non-null = that panel's detail. Survives configuration changes.
+- **Navigation** is a Navigation 3 `NavBackStack` of `NavKey`s (`HomeKey` /
+  `PanelKey`); `NavDisplay` renders the top entry. Survives process death (§6).
 
 ---
 
@@ -112,22 +113,22 @@ in `runCatching`/`try` so a provider can never crash the dashboard.
 ## 5. UI composition
 
 ### Host — `PulseDashboard(onClose)`
-Owns the `Scaffold`. Chooses the top bar and body by selection state:
-
-```kotlin
-val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-Scaffold(
-    modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-    topBar = { if (selected == null) DashboardTopBar(scrollBehavior, …) else DetailTopBar(selected, …) },
-) { padding -> if (selected == null) PanelGrid(…) else PanelDetail(…) }
-BackHandler(enabled = selected != null) { selectedId = null }   // detail → grid
-```
+Owns the live stats and the **Navigation 3 back stack**; `NavDisplay` renders the
+top key (see §6). Each destination is a full screen with its own `Scaffold` + top
+bar:
+- `DashboardGridScreen` — `Scaffold` with the collapsing `DashboardTopBar` +
+  `nestedScroll(scrollBehavior)`, body = `PanelGrid`.
+- `DashboardDetailScreen` — `Scaffold` with `DetailTopBar`, body = `PanelDetail`.
 
 ### Top bars — `DashboardTopBars.kt`
+Both bars are **colorful**: `containerColor = primaryContainer`, content =
+`onPrimaryContainer` (light blue in light theme, dark blue in dark theme). The bar
+fills behind the status bar, so the status bar area is colored too (see §7 for icon
+contrast).
 - **`DashboardTopBar`**: `LargeTopAppBar` — logo (`LogoBadge`), title **PulseKit** +
   subtitle **Profiler dashboard**, actions **Reset counters** (`Refresh`) and
   **Close** (`Close` → `onClose` → `finish()`). Collapses on grid scroll via the
-  shared `scrollBehavior` (`scrolledContainerColor` gives the elevation tint).
+  shared `scrollBehavior`.
 - **`DetailTopBar`**: `TopAppBar` — back arrow, panel title, and a **⋮ overflow**
   with **Copy properties** (writes `label: value` lines to the clipboard via
   `LocalClipboardManager`). Overflow only shows when the panel has data.
@@ -136,8 +137,9 @@ BackHandler(enabled = selected != null) { selectedId = null }   // detail → gr
 > `MoreVert`) — we deliberately avoid the multi-MB `material-icons-extended`.
 
 ### Grid / tiles / detail
-- `PanelGrid`: `LazyVerticalGrid(GridCells.Fixed(2))`, spacing/padding from
-  `DashboardDefaults`, `items(panels, key = { it.id })`.
+- `PanelGrid`: **adaptive** `LazyVerticalGrid(GridCells.Adaptive(minSize = 168.dp))`
+  — columns reflow with available width (2 on a phone, more on tablets/landscape).
+  Spacing/padding from `DashboardDefaults`, `items(panels, key = { it.id })`.
 - `PanelTile`: fixed-height `Card`, `Badge` + title + summary, `clickable`. Muted
   colors when `!available`.
 - `PanelDetail`: vertically scrollable; property rows in a `Card` separated by
@@ -150,16 +152,41 @@ tile height, badge/card corners). Tune the look in one place.
 
 ---
 
-## 6. Navigation — why no nav library
+## 6. Navigation — Navigation 3 (`NavKey` back stack)
 
-Two destinations (grid ⇄ detail) don't justify `navigation-compose`. We use a
-single `rememberSaveable` selection id + `BackHandler`. This:
-- survives rotation/process death (saveable),
-- adds no dependency,
-- keeps the whole flow readable in one function.
+The dashboard uses **Navigation 3** (`androidx.navigation3`, stable `1.1.4`) — the
+key-based navigation model. The back stack is a list of `NavKey`s and
+[`NavDisplay`] renders the top one.
 
-If the dashboard grows to many nested screens, revisit this (likely when it moves
-to `pulse-compose-ui`).
+```kotlin
+// DashboardNavKeys.kt
+@Serializable data object HomeKey : NavKey
+@Serializable data class PanelKey(val panelId: String) : NavKey
+
+// PulseDashboard()
+val backStack = rememberNavBackStack(HomeKey)          // survives process death
+NavDisplay(
+    backStack = backStack,
+    onBack = { backStack.removeLastOrNull() },          // predictive back
+    entryProvider = entryProvider<NavKey> {
+        entry<HomeKey>  { DashboardGridScreen(onOpen = { backStack.add(PanelKey(it.id)) }, …) }
+        entry<PanelKey> { key -> DashboardDetailScreen(panel = panels.first { it.id == key.panelId }, …) }
+    },
+)
+```
+
+Key points / gotchas (from wiring this up):
+- `entry` needs **no import** — it's a member of the `entryProvider<NavKey> { }`
+  receiver scope. (Importing `androidx.navigation3.runtime.entry` fails to resolve.)
+- `NavDisplay(onBack = …)` is `() -> Unit` (not `(Int) -> Unit`).
+- `rememberNavBackStack` needs the keys to be `@Serializable NavKey` → the module
+  applies the `kotlin.serialization` plugin.
+- Navigation 3 requires **compileSdk 36** and **AGP ≥ 8.9.1** (we bumped to AGP
+  8.9.3 / compileSdk 36; `targetSdk` stays 35).
+
+Opening a panel = `backStack.add(PanelKey(id))`; going back = `removeLastOrNull()`
+(also driven by system/predictive back through `onBack`). Adding a new nested
+screen later is just another `NavKey` + `entry<>` — no refactor.
 
 ---
 
@@ -174,6 +201,12 @@ to `pulse-compose-ui`).
 - Light/dark follows the system via `isSystemInDarkTheme()`. The pre-Compose window
   background comes from `Theme.PulseKit.Dashboard` (`res/values{,-night}`), so there's
   no flash of the wrong color at launch.
+- **Status bar contrast.** The colored top bar (`primaryContainer`) extends behind
+  the status bar. `PulseTheme` sets, via a `SideEffect` on the window's
+  `WindowInsetsController`, `isAppearanceLightStatusBars = !darkTheme` (and the same
+  for the nav bar). That's correct because `primaryContainer` is *light* in the light
+  theme (→ dark icons) and *dark* in the dark theme (→ light icons). This is what
+  fixed the previously-unreadable status bar.
 
 ---
 
@@ -182,14 +215,21 @@ to `pulse-compose-ui`).
 Compose is added here because this is the dashboard's interim home:
 
 ```
-compose-compiler plugin + android.buildFeatures.compose = true
+compose-compiler plugin + kotlin-serialization plugin
+android.buildFeatures.compose = true
 platform(compose-bom)
-androidx.activity:activity-compose          // setContent, enableEdgeToEdge, BackHandler
-androidx.compose.foundation:foundation      // LazyVerticalGrid
-androidx.compose.material3:material3         // Scaffold, TopAppBar, Card, …
-androidx.compose.material:material-icons-core // ArrowBack/Refresh/Close/MoreVert only
+androidx.activity:activity-compose            // setContent, enableEdgeToEdge
+androidx.compose.foundation:foundation        // LazyVerticalGrid
+androidx.compose.material3:material3           // Scaffold, TopAppBar, Card, …
+androidx.compose.material:material-icons-core  // ArrowBack/Refresh/Close/MoreVert only
 androidx.compose.ui:ui-tooling-preview (+ ui-tooling on debug)
+androidx.navigation3:navigation3-runtime       // NavKey, rememberNavBackStack, entryProvider
+androidx.navigation3:navigation3-ui            // NavDisplay
+org.jetbrains.kotlinx:kotlinx-serialization-json  // @Serializable NavKeys
 ```
+
+Build requirements bumped for Navigation 3: **AGP 8.9.3**, **compileSdk 36**
+(both set in `gradle/libs.versions.toml`; Gradle stays 8.11.1).
 
 ---
 

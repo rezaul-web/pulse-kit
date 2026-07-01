@@ -1,6 +1,5 @@
 package io.pulsekit.android.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -33,7 +33,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,11 +43,15 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.ui.NavDisplay
 import io.pulsekit.runtime.Pulse
 
 /** Layout constants for the dashboard, in one place for easy tuning. */
 private object DashboardDefaults {
-    const val GRID_COLUMNS = 2
+    val TileMinWidth = 168.dp   // drives the adaptive column count
     val ScreenPadding = 16.dp
     val GridSpacing = 12.dp
     val TilePadding = 14.dp
@@ -56,17 +59,19 @@ private object DashboardDefaults {
     val BadgeSize = 34.dp
     val BadgeCorner = 10.dp
     val CardCorner = 16.dp
+    val ContentMaxWidth = 640.dp // keep content readable on tablets/landscape
 }
 
 /**
- * Stateful host for the whole dashboard. Owns:
- * - live [LiveStats] collected from [Pulse.events],
- * - which panel (if any) is open, and
- * - the [Scaffold] + top bars (grid vs. detail) with collapsing-bar scroll.
+ * Stateful host for the whole dashboard.
+ *
+ * Owns the live [LiveStats] (collected from [Pulse.events]) and the **Navigation 3**
+ * back stack of [androidx.navigation3.runtime.NavKey]s. [NavDisplay] renders the top
+ * key: [HomeKey] → the panel grid, [PanelKey] → a panel's detail. Predictive back is
+ * handled by `NavDisplay`'s `onBack`.
  *
  * @param onClose invoked by the grid's close action (the Activity passes `finish`).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PulseDashboard(
     onClose: () -> Unit,
@@ -79,40 +84,73 @@ fun PulseDashboard(
     LaunchedEffect(Unit) {
         Pulse.events.collect { event -> stats = stats.reduce(event) }
     }
-
     val panels = buildPanels(context, stats)
-    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
-    val selected = panels.firstOrNull { it.id == selectedId }
 
-    // Detail → grid on system back.
-    BackHandler(enabled = selected != null) { selectedId = null }
+    val backStack = rememberNavBackStack(HomeKey)
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-
-    Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            if (selected == null) {
-                DashboardTopBar(
-                    scrollBehavior = scrollBehavior,
+    NavDisplay(
+        backStack = backStack,
+        modifier = modifier,
+        onBack = { backStack.removeLastOrNull() },
+        entryProvider = entryProvider<NavKey> {
+            entry<HomeKey> {
+                DashboardGridScreen(
+                    panels = panels,
+                    onOpen = { backStack.add(PanelKey(it.id)) },
                     onResetCounters = { stats = LiveStats() },
                     onClose = onClose,
                 )
-            } else {
-                DetailTopBar(panel = selected, onBack = { selectedId = null })
+            }
+            entry<PanelKey> { key ->
+                val panel = panels.firstOrNull { it.id == key.panelId }
+                if (panel != null) {
+                    DashboardDetailScreen(panel = panel, onBack = { backStack.removeLastOrNull() })
+                }
             }
         },
+    )
+}
+
+/** Home destination: collapsing top bar over the adaptive panel grid. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DashboardGridScreen(
+    panels: List<PulsePanel>,
+    onOpen: (PulsePanel) -> Unit,
+    onResetCounters: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            DashboardTopBar(
+                scrollBehavior = scrollBehavior,
+                onResetCounters = onResetCounters,
+                onClose = onClose,
+            )
+        },
     ) { innerPadding ->
-        if (selected == null) {
-            PanelGrid(panels = panels, contentPadding = innerPadding, onOpen = { selectedId = it.id })
-        } else {
-            PanelDetail(panel = selected, contentPadding = innerPadding)
-        }
+        PanelGrid(panels = panels, contentPadding = innerPadding, onOpen = onOpen)
     }
 }
 
-/** The 2-column grid of panel tiles. */
+/** Detail destination: back/copy top bar over the panel's properties. */
+@Composable
+private fun DashboardDetailScreen(panel: PulsePanel, onBack: () -> Unit) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = { DetailTopBar(panel = panel, onBack = onBack) },
+    ) { innerPadding ->
+        PanelDetail(panel = panel, contentPadding = innerPadding)
+    }
+}
+
+/** Adaptive grid — columns reflow with available width (phone/tablet/landscape). */
 @Composable
 private fun PanelGrid(
     panels: List<PulsePanel>,
@@ -120,7 +158,7 @@ private fun PanelGrid(
     onOpen: (PulsePanel) -> Unit,
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Fixed(DashboardDefaults.GRID_COLUMNS),
+        columns = GridCells.Adaptive(minSize = DashboardDefaults.TileMinWidth),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = DashboardDefaults.ScreenPadding,
@@ -214,6 +252,7 @@ private fun PanelDetail(panel: PulsePanel, contentPadding: PaddingValues) {
                 top = contentPadding.calculateTopPadding(),
                 bottom = contentPadding.calculateBottomPadding(),
             ),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (panel.properties.isEmpty()) {
             EmptyPanel(panel)
@@ -221,6 +260,7 @@ private fun PanelDetail(panel: PulsePanel, contentPadding: PaddingValues) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .widthIn(max = DashboardDefaults.ContentMaxWidth)
                     .padding(horizontal = DashboardDefaults.ScreenPadding, vertical = 8.dp),
                 shape = RoundedCornerShape(DashboardDefaults.CardCorner),
                 colors = CardDefaults.cardColors(
