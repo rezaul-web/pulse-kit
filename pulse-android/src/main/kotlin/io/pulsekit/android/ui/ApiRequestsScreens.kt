@@ -2,10 +2,8 @@ package io.pulsekit.android.ui
 
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -235,15 +234,9 @@ fun ApiTransactionScreen(txn: NetworkTransaction, onBack: () -> Unit) {
                 }
             }
             when (selectedTab) {
-                0 -> CopyableTab(copyText = txn.toCurl()) {
-                    CodeBlock(txn.toCurl())
-                }
-                1 -> CopyableTab(copyText = requestText(txn)) {
-                    RequestSections(txn)
-                }
-                else -> CopyableTab(copyText = responseText(txn)) {
-                    ResponseSections(txn)
-                }
+                0 -> TabScroll { CodeBlock(txn.toCurl()) }
+                1 -> TabScroll { RequestSections(txn) }
+                else -> TabScroll { ResponseSections(txn) }
             }
         }
     }
@@ -332,36 +325,21 @@ private fun ApiTopBar(
 }
 
 /**
- * Scrollable tab body that copies its whole [copyText] on tap **or** long-press,
- * with a confirmation toast. A hint row makes the affordance discoverable.
+ * Scrollable tab body wrapped in a [SelectionContainer] so the user can select and
+ * copy any text they want. A plain tap does nothing — no accidental copies. (Use
+ * the top-bar Share action for a one-tap copy of the whole cURL command.)
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CopyableTab(copyText: String, content: @Composable ColumnScope.() -> Unit) {
-    val copy = rememberCopyAction()
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .combinedClickable(
-                onClick = { copy(copyText) },
-                onLongClick = { copy(copyText) },
-            )
-            .padding(16.dp),
-    ) {
-        CopyHint()
-        content()
+private fun TabScroll(content: @Composable ColumnScope.() -> Unit) {
+    SelectionContainer {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            content = content,
+        )
     }
-}
-
-@Composable
-private fun CopyHint() {
-    Text(
-        text = "Tap or long-press to copy",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.outline,
-        modifier = Modifier.padding(bottom = 4.dp),
-    )
 }
 
 @Composable
@@ -460,35 +438,6 @@ private fun rememberCopyAction(): (String) -> Unit {
         }
     }
 }
-
-/** Whole-tab plain text for the Request tab (for copy). */
-private fun requestText(txn: NetworkTransaction): String = buildString {
-    appendLine("${txn.method} ${txn.url}")
-    txn.error?.let { appendLine("Error: $it") }
-    if (txn.requestHeaders.isNotEmpty()) {
-        appendLine()
-        txn.requestHeaders.forEach { appendLine("${it.name}: ${it.value}") }
-    }
-    val body = txn.requestBody
-    if (!body.isNullOrEmpty()) {
-        appendLine()
-        appendLine(prettyBody(body, txn.requestContentType))
-    }
-}.trim()
-
-/** Whole-tab plain text for the Response tab (data first, for copy). */
-private fun responseText(txn: NetworkTransaction): String = buildString {
-    val body = txn.responseBody
-    if (!body.isNullOrEmpty()) {
-        appendLine(prettyBody(body, txn.responseContentType))
-        appendLine()
-    }
-    appendLine(if (txn.isFailed) "Failed: ${txn.error}" else "Status: ${txn.statusCode} ${txn.responseMessage}")
-    if (txn.responseHeaders.isNotEmpty()) {
-        appendLine()
-        txn.responseHeaders.forEach { appendLine("${it.name}: ${it.value}") }
-    }
-}.trim()
 
 /** Pretty-print a JSON body; return the original text for anything else. */
 private fun prettyBody(body: String, contentType: String?): String {

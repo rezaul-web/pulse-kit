@@ -316,9 +316,10 @@ request as a runnable `curl`. Bodies are captured up to a cap (256 KB) and may b
   Empty state prompts to add the interceptor.
 - `ApiTransactionScreen`: a `TabRow` with **cURL / Request / Response**. Bodies are
   monospaced and JSON is pretty-printed (`kotlinx.serialization`). The **Response tab
-  leads with the response data (body)**, then status and headers. **Each tab copies
-  its full formatted content on tap or long-press** (`combinedClickable` → clipboard +
-  a confirmation toast); the top bar also has a Share action that copies the cURL.
+  leads with the response data (body)**, then status and headers. Tab content is
+  wrapped in a `SelectionContainer`, so the user can select and copy any text (a plain
+  tap does nothing — no accidental copies); the top bar has a Share action that copies
+  the whole cURL command.
 - Navigation: the API tile pushes `ApiListKey`; a row pushes `ApiDetailKey(id)`.
   Both look the transaction up from the collected `Pulse.network` list by `id`.
 
