@@ -421,8 +421,12 @@ Each spec lists **Purpose**, **Key APIs**, **Platform**, **Dependencies**, and *
 - **Done when:** Round-trips a session to JSON and back; ZIP bundles logs+network+metrics.
 
 ### 7.14 `pulse-android` (Android)
-- **Purpose:** Wire Android actuals, the floating overlay (movable/expandable bubble), and Android DI.
-- **Done when:** Overlay draggable + expandable in the sample app; requests overlay permission gracefully.
+- **Purpose:** Wire Android actuals, the floating overlay (movable/expandable bubble), Android DI, and the **dashboard entry points**.
+- **Entry points (two, both zero-integration):** the app gets these for free from `PulseAndroid.initialize()`, no per-screen wiring.
+  1. **Notification launcher** — an *ongoing, debug-only* notification on its own low-importance channel (`pulsekit.dashboard`); tapping it (or its "Dashboard" action) fires a `PendingIntent` into `PulseDashboardActivity`. Gated by `PulseConfig.notificationEnabled` + debug-build detection (`ApplicationInfo.FLAG_DEBUGGABLE`, respecting `debugOnly`). On Android 13+ it no-ops if `POST_NOTIFICATIONS` is not granted (the host owns that prompt); `PulseAndroid.showDashboardNotification(context)` re-posts it after the grant. Mirrors the persistent dev-tools notification pattern.
+     - **Own task, not a separate APK.** `PulseDashboardActivity` uses `taskAffinity="io.pulsekit.dashboard"` + `launchMode="singleTask"` + its own icon/label, so it opens as a **separate Recents card** and *feels* like a distinct app — while remaining in the **same APK/process/UID**, which is what lets it read the live event bus, prefs, and DB. A genuinely separate installable APK would be sandboxed under a different UID and could only reach that data over IPC (exported debug-only `ContentProvider`/bound `Service`); out of scope unless a single inspector app must attach to many host apps.
+  2. **Floating overlay** — the movable/expandable bubble (below).
+- **Done when:** Integrating the SDK auto-posts the dashboard notification in a debug build, and tapping it opens the dashboard; overlay draggable + expandable in the sample app; requests overlay permission gracefully. *(Notification launcher + placeholder `PulseDashboardActivity` implemented in Phase 1; the rich Compose dashboard it hosts arrives in Phase 3 via `pulse-compose-ui`.)*
 
 ### 7.15 Future platform modules
 - `pulse-ios`, `pulse-desktop` — actuals only; **must not** require changing core or public API.

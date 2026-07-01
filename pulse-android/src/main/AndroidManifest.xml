@@ -1,2 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Required on Android 13+ to post the debug dashboard notification.
+         The host app owns the runtime prompt; PulseKit no-ops if it is denied. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        <!--
+          Opens in its OWN task with its own icon/label — like powerplay-fieldapp's
+          DebugActivity. This makes the dashboard appear as a separate card in
+          Recents (feels like a separate app) while staying in the SAME APK/process
+          so it can read the live event bus, prefs, DB, etc. A separate installable
+          APK would be sandboxed under a different UID and couldn't do that.
+        -->
+        <activity
+            android:name="io.pulsekit.android.ui.PulseDashboardActivity"
+            android:exported="false"
+            android:icon="@drawable/ic_pulse_dashboard"
+            android:label="PulseKit"
+            android:launchMode="singleTask"
+            android:taskAffinity="io.pulsekit.dashboard"
+            android:excludeFromRecents="false" />
+    </application>
+</manifest>

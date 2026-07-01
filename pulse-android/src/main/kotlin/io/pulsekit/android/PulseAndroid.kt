@@ -1,6 +1,7 @@
 package io.pulsekit.android
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import io.pulsekit.core.PulseConfig
@@ -22,10 +23,33 @@ object PulseAndroid {
     fun initialize(context: Context, configure: PulseConfig.() -> Unit = {}) {
         Napier.base(DebugAntilog())
 
-        Pulse.initialize(context.applicationContext, configure = configure)
+        val app = context.applicationContext
+        Pulse.initialize(app, configure = configure)
 
         // Register Android feature plugins. In later phases this is driven by the
         // config flags through the DI graph; kept explicit here for clarity.
         Pulse.registerPlugin(FpsPlugin(sessionIdProvider = { Pulse.activeSession()?.value }))
+
+        // Resolve the same config the runtime built so we can honour its flags here.
+        val config = PulseConfig().apply(configure)
+        if (config.notificationEnabled && (!config.debugOnly || app.isDebuggable())) {
+            PulseNotification.show(app)
+        }
     }
+
+    /**
+     * (Re)post the dashboard notification.
+     *
+     * [initialize] posts it automatically, but that runs in `Application.onCreate`
+     * — before the app can hold the Android 13+ `POST_NOTIFICATIONS` permission.
+     * Call this again once the permission is granted (see the sample app) to make
+     * the notification appear.
+     */
+    fun showDashboardNotification(context: Context) {
+        PulseNotification.show(context.applicationContext)
+    }
+
+    /** True when the host app is built debuggable — the SDK's "debug build" signal. */
+    private fun Context.isDebuggable(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 }

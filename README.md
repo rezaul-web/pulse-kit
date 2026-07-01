@@ -15,8 +15,8 @@ A buildable Kotlin Multiplatform skeleton with the core plugin/event architectur
 | `pulse-core` | KMP (android + jvm) | Events, `EventBus`, dispatchers, config. No platform APIs. |
 | `pulse-plugin` | KMP | `PulsePlugin` / `PluginScope` contracts. |
 | `pulse-runtime` | KMP | Public `Pulse` API, `PluginManager`, `expect/actual` platform context. |
-| `pulse-android` | Android lib | `PulseAndroid` facade + Choreographer `FpsPlugin`. |
-| `sample` | Android app | Compose app that initializes PulseKit and tracks events. |
+| `pulse-android` | Android lib | `PulseAndroid` facade, Choreographer `FpsPlugin`, notification launcher + `PulseDashboardActivity`. |
+| `sample` | Android app | Compose app that initializes PulseKit, tracks events, and requests the notification permission. |
 
 ## Requirements
 
@@ -44,6 +44,34 @@ PulseAndroid.initialize(this) {
 // anywhere
 Pulse.track("checkout_started", mapOf("cart_size" to "3"))
 ```
+
+## Debug dashboard from a notification
+
+When PulseKit is initialized in a **debug build**, it automatically posts an ongoing
+notification. Tapping it (or its **Dashboard** action) opens `PulseDashboardActivity`.
+No per-screen wiring is required — integrating the SDK is enough.
+
+- **Own task, same APK.** The dashboard uses `taskAffinity` + `singleTask` + its own
+  icon/label, so it appears as a **separate card in Recents** (feels like a separate app)
+  while staying in the same process — which is what lets it read the live event bus,
+  prefs, and DB. It is *not* a separate installable APK. (This mirrors how
+  `powerplay-fieldapp`'s `DebugActivity` behaves.)
+- **Gating.** Controlled by `notificationEnabled` (default `true`) and only shown in
+  debuggable builds (respects `debugOnly`).
+- **Android 13+ permission.** Posting a notification requires the runtime
+  `POST_NOTIFICATIONS` permission. `PulseAndroid.initialize()` runs in
+  `Application.onCreate` — before the app can hold that permission — so the sample
+  requests it in `MainActivity` and then calls:
+
+  ```kotlin
+  PulseAndroid.showDashboardNotification(this) // re-post once the permission is granted
+  ```
+
+  If the permission is denied, the SDK silently no-ops (the host owns the prompt).
+
+> The current `PulseDashboardActivity` is a lightweight placeholder showing the live
+> session id and event count. The full Compose dashboard (App Info, API Requests,
+> Crashes, Commit History, …) arrives in Phase 3 — see `ARCHITECTURE.md` §7.0/§7.14.
 
 ## Next (Phase 2 / 3)
 

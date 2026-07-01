@@ -22,6 +22,13 @@ class PulseConfig {
     /** Android floating debug overlay. */
     var overlayEnabled: Boolean = true
 
+    /**
+     * Post an ongoing Android notification that opens the PulseKit dashboard when
+     * tapped. Debug builds only (respects [debugOnly]). Mirrors the "open the
+     * debug menu from a notification" developer-tools UX.
+     */
+    var notificationEnabled: Boolean = true
+
     /** Number of past sessions retained in storage before pruning. */
     var maxSessionsRetained: Int = 20
 
