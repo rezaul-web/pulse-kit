@@ -46,8 +46,11 @@ fun LiveStats.reduce(event: PulseEvent): LiveStats = copy(
     droppedFrames = droppedFrames + if (event is FrameDropped) 1 else 0,
 )
 
-/** Build the full panel list, folding in the current [stats] snapshot. */
-fun buildPanels(context: Context, stats: LiveStats): List<PulsePanel> = listOf(
+/**
+ * Build the full panel list, folding in the current [stats] snapshot and the
+ * number of captured API requests ([apiCount]).
+ */
+fun buildPanels(context: Context, stats: LiveStats, apiCount: Int = 0): List<PulsePanel> = listOf(
     PulsePanel(
         id = "app_info",
         title = "App Info",
@@ -102,9 +105,9 @@ fun buildPanels(context: Context, stats: LiveStats): List<PulsePanel> = listOf(
         id = "api",
         title = "API Requests",
         badge = "Ap",
-        summary = "Phase 3",
-        available = false,
-        properties = emptyList(),
+        summary = if (apiCount == 1) "1 call" else "$apiCount calls",
+        available = true,
+        properties = emptyList(), // opens the dedicated list screen, not property rows
     ),
     PulsePanel(
         id = "crashes",

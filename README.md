@@ -15,8 +15,9 @@ A buildable Kotlin Multiplatform skeleton with the core plugin/event architectur
 | `pulse-core` | KMP (android + jvm) | Events, `EventBus`, dispatchers, config. No platform APIs. |
 | `pulse-plugin` | KMP | `PulsePlugin` / `PluginScope` contracts. |
 | `pulse-runtime` | KMP | Public `Pulse` API, `PluginManager`, `expect/actual` platform context. |
-| `pulse-android` | Android lib | `PulseAndroid` facade, Choreographer `FpsPlugin`, notification launcher + `PulseDashboardActivity`. |
-| `sample` | Android app | Compose app that initializes PulseKit, tracks events, and requests the notification permission. |
+| `pulse-android` | Android lib | `PulseAndroid` facade, Choreographer `FpsPlugin`, notification launcher + Compose dashboard. |
+| `pulse-network` | Android lib | `PulseOkHttpInterceptor` — captures HTTP calls for the API Requests inspector. |
+| `sample` | Android app | Compose app that initializes PulseKit, tracks events, makes demo API calls, and requests the notification permission. |
 
 ## Requirements
 
@@ -43,6 +44,11 @@ PulseAndroid.initialize(this) {
 
 // anywhere
 Pulse.track("checkout_started", mapOf("cart_size" to "3"))
+
+// capture HTTP for the API Requests inspector — one line on your OkHttp client
+val client = OkHttpClient.Builder()
+    .addInterceptor(PulseOkHttpInterceptor())
+    .build()
 ```
 
 ## Debug dashboard from a notification

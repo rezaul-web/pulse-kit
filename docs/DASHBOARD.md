@@ -38,7 +38,8 @@ All under `pulse-android/src/main/kotlin/io/pulsekit/android/`:
 | `ui/PulseDashboardActivity.kt` | Thin `ComponentActivity`. Applies `PulseTheme`, goes edge-to-edge, hosts `PulseDashboard(onClose = ::finish)`. No UI logic. |
 | `ui/PulseDashboard*`… `PulseDashboardScreen.kt` | **Stateful host** `PulseDashboard()` (collects live stats, owns selection + `Scaffold`) and the stateless UI: `PanelGrid`, `PanelTile`, `Badge`, `PanelDetail`, `PropertyRow`, `EmptyPanel`. Layout constants in `DashboardDefaults`. |
 | `ui/DashboardTopBars.kt` | `DashboardTopBar` (collapsing `LargeTopAppBar`) and `DetailTopBar` (`TopAppBar` with a "Copy properties" overflow). Both use the colorful `primaryContainer`. |
-| `ui/DashboardNavKeys.kt` | **Navigation 3** destination keys: `HomeKey`, `PanelKey(panelId)` — `@Serializable` `NavKey`s. |
+| `ui/DashboardNavKeys.kt` | **Navigation 3** destination keys: `HomeKey`, `PanelKey`, `ApiListKey`, `ApiDetailKey` — `@Serializable` `NavKey`s. |
+| `ui/ApiRequestsScreens.kt` | **API Requests** UI: the request list and the tabbed detail (cURL · Request · Response). |
 | `ui/DashboardModel.kt` | Domain model (`PulsePanel`, `PulseProperty`, `LiveStats`), the `LiveStats.reduce()` reducer, `buildPanels()`, and the per-panel data providers. |
 | `ui/theme/PulseTheme.kt` | Material 3 brand `ColorScheme` (light + dark). No dynamic color. |
 | `res/drawable/ic_pulse_dashboard.xml` | The PulseKit logo (used by the notification and the grid top bar). |
@@ -280,7 +281,57 @@ shows as a separate Recents card — see `ARCHITECTURE.md` §7.14.
 
 ---
 
-## 11. Known limitations / TODO
+## 11. API Requests inspector (network capture)
+
+The **API Requests** panel is a full feature (not a placeholder): a list of captured
+HTTP calls → a tabbed detail (**cURL · Request · Response**).
+
+### Capture pipeline
+```
+OkHttp call
+   │  PulseOkHttpInterceptor  (module :pulse-network)
+   │    • reads request body from a COPY (okio.Buffer)
+   │    • peeks the response body (never consumes the real stream)
+   │    • redacts Authorization/Cookie/… headers
+   ▼
+Pulse.recordNetwork(NetworkTransaction)          (pulse-runtime)
+   ▼
+InMemoryNetworkRecorder  (pulse-core) — newest-first, capped ring buffer, atomic update
+   ▼
+Pulse.network : StateFlow<List<NetworkTransaction>>
+   ▼
+Dashboard: collectAsState → API Requests tile count → list → detail
+```
+
+### Model — `NetworkTransaction` (pulse-core, `NetworkTransaction.kt`)
+Immutable, `@Serializable`: method, url (`path`/`host` helpers), request & response
+headers/body/content-type/sizes, `statusCode`, `protocol`, `durationMs`, `startedAtMs`,
+and `error` (non-null when the call failed before a response). `toCurl()` renders the
+request as a runnable `curl`. Bodies are captured up to a cap (256 KB) and may be
+`<stream>`/truncated; sensitive headers show as `██`.
+
+### UI — `ApiRequestsScreens.kt`
+- `ApiRequestsListScreen`: `LazyColumn` of rows, each a colored **status pill**
+  (2xx green, 3xx amber, 4xx/5xx & failures red), method, path, host, duration.
+  Empty state prompts to add the interceptor.
+- `ApiTransactionScreen`: a `TabRow` with **cURL / Request / Response**. Bodies are
+  monospaced, JSON is pretty-printed (`kotlinx.serialization`), everything is inside
+  a `SelectionContainer`, and the top bar has a Share action that copies the cURL.
+- Navigation: the API tile pushes `ApiListKey`; a row pushes `ApiDetailKey(id)`.
+  Both look the transaction up from the collected `Pulse.network` list by `id`.
+
+### Integrating in a host app
+One line — add the interceptor to your client; everything else is automatic:
+```kotlin
+OkHttpClient.Builder().addInterceptor(PulseOkHttpInterceptor()).build()
+```
+`PulseOkHttpInterceptor(maxBodyBytes = …, redactHeaders = …)` is configurable. The
+sample's `SampleApi` shows a GET, a POST-with-body, and a 404.
+
+> Storage is in-memory for now (cleared on `Pulse.shutdown()`); the SQLDelight-backed
+> store + Ktor-client capture arrive in Phase 3 (`ARCHITECTURE.md` §7.4).
+
+## 12. Known limitations / TODO
 
 - Placeholder panels (API Requests, Crashes, Commit History) have no data — Phase 3.
 - Long device model names truncate on the tile (full value shows in detail).

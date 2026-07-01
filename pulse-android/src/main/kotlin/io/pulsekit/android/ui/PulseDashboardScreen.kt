@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,7 +85,8 @@ fun PulseDashboard(
     LaunchedEffect(Unit) {
         Pulse.events.collect { event -> stats = stats.reduce(event) }
     }
-    val panels = buildPanels(context, stats)
+    val transactions by Pulse.network.collectAsState()
+    val panels = buildPanels(context, stats, apiCount = transactions.size)
 
     val backStack = rememberNavBackStack(HomeKey)
 
@@ -96,7 +98,9 @@ fun PulseDashboard(
             entry<HomeKey> {
                 DashboardGridScreen(
                     panels = panels,
-                    onOpen = { backStack.add(PanelKey(it.id)) },
+                    onOpen = { panel ->
+                        backStack.add(if (panel.id == "api") ApiListKey else PanelKey(panel.id))
+                    },
                     onResetCounters = { stats = LiveStats() },
                     onClose = onClose,
                 )
@@ -105,6 +109,19 @@ fun PulseDashboard(
                 val panel = panels.firstOrNull { it.id == key.panelId }
                 if (panel != null) {
                     DashboardDetailScreen(panel = panel, onBack = { backStack.removeLastOrNull() })
+                }
+            }
+            entry<ApiListKey> {
+                ApiRequestsListScreen(
+                    transactions = transactions,
+                    onOpen = { backStack.add(ApiDetailKey(it.id)) },
+                    onBack = { backStack.removeLastOrNull() },
+                )
+            }
+            entry<ApiDetailKey> { key ->
+                val txn = transactions.firstOrNull { it.id == key.transactionId }
+                if (txn != null) {
+                    ApiTransactionScreen(txn = txn, onBack = { backStack.removeLastOrNull() })
                 }
             }
         },

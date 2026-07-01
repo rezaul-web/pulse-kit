@@ -18,13 +18,16 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -127,6 +130,21 @@ private fun SampleScreen() {
         ) {
             Text("Track an event", style = MaterialTheme.typography.labelLarge)
         }
+
+        val scope = rememberCoroutineScope()
+        OutlinedButton(
+            onClick = { scope.launch { SampleApi.runDemoCalls() } },
+            modifier = Modifier.padding(top = 12.dp),
+        ) {
+            Text("Make API calls", style = MaterialTheme.typography.labelLarge)
+        }
+        Text(
+            text = "Open the PulseKit notification → API Requests to inspect them.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 16.dp),
+        )
     }
 }
 

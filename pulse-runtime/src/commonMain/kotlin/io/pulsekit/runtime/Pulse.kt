@@ -3,6 +3,9 @@ package io.pulsekit.runtime
 import io.github.aakira.napier.Napier
 import io.pulsekit.core.CustomEvent
 import io.pulsekit.core.EventBus
+import io.pulsekit.core.InMemoryNetworkRecorder
+import io.pulsekit.core.NetworkRecorder
+import io.pulsekit.core.NetworkTransaction
 import io.pulsekit.core.PulseConfig
 import io.pulsekit.core.PulseDispatchers
 import io.pulsekit.core.PulseEvent
@@ -10,6 +13,7 @@ import io.pulsekit.core.SessionId
 import io.pulsekit.core.asReadOnly
 import io.pulsekit.plugin.PulsePlugin
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The public entry point to PulseKit.
@@ -26,9 +30,13 @@ object Pulse {
     private var pluginManager: PluginManager? = null
     private var currentSession: SessionId? = null
     private var initialized: Boolean = false
+    private var networkRecorder: NetworkRecorder = InMemoryNetworkRecorder()
 
     /** Read-only stream of all events for embedding UI or custom tooling. */
     val events: Flow<PulseEvent> get() = bus.events
+
+    /** Read-only stream of captured HTTP transactions (see `PulseOkHttpInterceptor`). */
+    val network: StateFlow<List<NetworkTransaction>> get() = networkRecorder.transactions
 
     /**
      * Initialize PulseKit. Idempotent — a second call is a logged no-op.
@@ -47,6 +55,7 @@ object Pulse {
         }
         config = PulseConfig().apply(configure)
         bus = EventBus()
+        networkRecorder = InMemoryNetworkRecorder()
         pluginManager = PluginManager(
             dispatchers = dispatchers,
             eventSink = bus,
@@ -82,6 +91,14 @@ object Pulse {
         )
     }
 
+    /**
+     * Record a captured HTTP transaction. Called by `PulseOkHttpInterceptor`;
+     * safe to call from any thread (and a no-op-safe before initialize).
+     */
+    fun recordNetwork(transaction: NetworkTransaction) {
+        networkRecorder.record(transaction)
+    }
+
     /** Register a custom feature plugin at runtime. */
     fun registerPlugin(plugin: PulsePlugin) {
         pluginManager?.register(plugin)
@@ -92,6 +109,7 @@ object Pulse {
     fun shutdown() {
         pluginManager?.shutdownAll()
         pluginManager = null
+        networkRecorder.clear()
         currentSession = null
         initialized = false
     }

@@ -37,6 +37,8 @@ android {
 
 dependencies {
     implementation(project(":pulse-android"))
+    implementation(project(":pulse-network"))
+    implementation(libs.okhttp)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime)

@@ -346,7 +346,7 @@ PulseKit's inspector surface is modeled on common in-app debug menus. The dividi
 | Panel | Classification | Where it lives |
 |---|---|---|
 | **App Info** | Generic | `pulse-appinfo` (§7.17) |
-| **API Requests** | Generic | `pulse-network` (§7.4) |
+| **API Requests** | Generic ✅ *implemented* | `pulse-network` (§7.4) |
 | **Crashes** | Generic | `pulse-crash` (§7.18) |
 | **Commit History** | Generic (build-time) | `pulse-provenance` + gradle-plugin (§7.19, §7.16) |
 | **Shared Preferences** | Generic | `pulse-storage-inspect` (§7.20) |
@@ -376,10 +376,11 @@ Each spec lists **Purpose**, **Key APIs**, **Platform**, **Dependencies**, and *
 - **Purpose:** Public `Pulse` object, DI graph (Koin), `PluginManager`, lifecycle coordination.
 - **Done when:** `Pulse.initialize` is idempotent; failing plugin never crashes host (test: register a throwing plugin, assert app survives).
 
-### 7.4 `pulse-network` (KMP core + Android/OkHttp actual) — *powers the **API Requests** panel*
+### 7.4 `pulse-network` (Android/OkHttp now; Ktor/KMP in Phase 3) — *powers the **API Requests** panel* ✅
 - **Purpose:** Capture request/response line, headers, body, duration, status; grouping & filtering; redaction.
-- **Key API:** `PulseOkHttpInterceptor()` (Android); `PulseKtorPlugin` (KMP).
-- **Done when:** Interceptor records a round-trip as `ApiCallStarted`/`ApiCallCompleted`; redaction policy applied; large bodies truncated with marker.
+- **Key API:** `PulseOkHttpInterceptor(maxBodyBytes, redactHeaders)` (Android). `PulseKtorPlugin` (KMP) is Phase 3.
+- **Status (implemented):** the interceptor records each round-trip as an immutable `NetworkTransaction` (in `pulse-core`) via `Pulse.recordNetwork(...)`, held by an in-memory `NetworkRecorder` and exposed as `Pulse.network: StateFlow<List<NetworkTransaction>>`. It reads the request body from a copy and *peeks* the response (never consuming it); default headers `Authorization`/`Cookie`/`Set-Cookie`/`Proxy-Authorization` are redacted; bodies are capped (256 KB) and truncated with a marker. The dashboard renders a request list → tabbed detail (**cURL · Request · Response**) with JSON pretty-printing. See `docs/DASHBOARD.md` §11.
+- **Phase 3:** SQLDelight-backed persistence, Ktor-client capture, and `ApiCallStarted`/`ApiCallCompleted` event emission.
 
 ### 7.5 `pulse-memory` (KMP where possible)
 - **Purpose:** Heap used/max, GC counts, allocation spikes, large-bitmap detection (Android), pressure warnings.

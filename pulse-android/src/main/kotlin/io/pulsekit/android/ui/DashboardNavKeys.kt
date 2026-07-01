@@ -13,6 +13,14 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object HomeKey : NavKey
 
-/** Opens the detail screen for the panel with [panelId]. */
+/** Opens the property-detail screen for the panel with [panelId]. */
 @Serializable
 data class PanelKey(val panelId: String) : NavKey
+
+/** Opens the list of captured API requests. */
+@Serializable
+data object ApiListKey : NavKey
+
+/** Opens the tabbed detail (cURL · Request · Response) for one captured request. */
+@Serializable
+data class ApiDetailKey(val transactionId: String) : NavKey
