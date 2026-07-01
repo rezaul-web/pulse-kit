@@ -1,8 +1,12 @@
 package io.pulsekit.runtime
 
 import io.github.aakira.napier.Napier
+import io.pulsekit.core.BuildProvenance
+import io.pulsekit.core.CrashRecorder
+import io.pulsekit.core.CrashReport
 import io.pulsekit.core.CustomEvent
 import io.pulsekit.core.EventBus
+import io.pulsekit.core.InMemoryCrashRecorder
 import io.pulsekit.core.InMemoryNetworkRecorder
 import io.pulsekit.core.NetworkRecorder
 import io.pulsekit.core.NetworkTransaction
@@ -31,12 +35,20 @@ object Pulse {
     private var currentSession: SessionId? = null
     private var initialized: Boolean = false
     private var networkRecorder: NetworkRecorder = InMemoryNetworkRecorder()
+    private var crashRecorder: CrashRecorder = InMemoryCrashRecorder()
 
     /** Read-only stream of all events for embedding UI or custom tooling. */
     val events: Flow<PulseEvent> get() = bus.events
 
     /** Read-only stream of captured HTTP transactions (see `PulseOkHttpInterceptor`). */
     val network: StateFlow<List<NetworkTransaction>> get() = networkRecorder.transactions
+
+    /** Read-only stream of captured crashes / handled exceptions. */
+    val crashes: StateFlow<List<CrashReport>> get() = crashRecorder.crashes
+
+    /** Build-time git/build provenance of the running binary (see `ARCHITECTURE.md` §6.5). */
+    var provenance: BuildProvenance = BuildProvenance.EMPTY
+        private set
 
     /**
      * Initialize PulseKit. Idempotent — a second call is a logged no-op.
@@ -56,6 +68,7 @@ object Pulse {
         config = PulseConfig().apply(configure)
         bus = EventBus()
         networkRecorder = InMemoryNetworkRecorder()
+        crashRecorder = InMemoryCrashRecorder()
         pluginManager = PluginManager(
             dispatchers = dispatchers,
             eventSink = bus,
@@ -99,6 +112,21 @@ object Pulse {
         networkRecorder.record(transaction)
     }
 
+    /** Record a crash / handled exception. Safe to call from any thread. */
+    fun recordCrash(report: CrashReport) {
+        crashRecorder.record(report)
+    }
+
+    /** Seed the crash list from persisted storage (called on startup). */
+    fun restoreCrashes(reports: List<CrashReport>) {
+        crashRecorder.restore(reports)
+    }
+
+    /** Set the build provenance read from the generated resource (see `ARCHITECTURE.md` §6.5). */
+    fun setProvenance(value: BuildProvenance) {
+        provenance = value
+    }
+
     /** Register a custom feature plugin at runtime. */
     fun registerPlugin(plugin: PulsePlugin) {
         pluginManager?.register(plugin)
@@ -110,6 +138,7 @@ object Pulse {
         pluginManager?.shutdownAll()
         pluginManager = null
         networkRecorder.clear()
+        crashRecorder.clear()
         currentSession = null
         initialized = false
     }

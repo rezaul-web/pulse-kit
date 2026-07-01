@@ -32,9 +32,27 @@ object PulseAndroid {
 
         // Resolve the same config the runtime built so we can honour its flags here.
         val config = PulseConfig().apply(configure)
+
+        // Crash capture: install the chaining uncaught handler and seed from disk.
+        if (config.enableCrash) {
+            PulseCrashReporter.install(app)
+        }
+        // Commit History: load the build-time provenance resource (if generated).
+        if (config.enableCommitHistory) {
+            Pulse.setProvenance(PulseProvenance.load(app))
+        }
+
         if (config.notificationEnabled && (!config.debugOnly || app.isDebuggable())) {
             PulseNotification.show(app)
         }
+    }
+
+    /**
+     * Record a handled (non-fatal) exception into the Crashes panel. Fatal, uncaught
+     * crashes are captured automatically once [initialize] has run.
+     */
+    fun recordException(throwable: Throwable) {
+        PulseCrashReporter.record(throwable, fatal = false)
     }
 
     /**

@@ -24,3 +24,15 @@ data object ApiListKey : NavKey
 /** Opens the tabbed detail (cURL · Request · Response) for one captured request. */
 @Serializable
 data class ApiDetailKey(val transactionId: String) : NavKey
+
+/** Opens the list of captured crashes / handled exceptions. */
+@Serializable
+data object CrashListKey : NavKey
+
+/** Opens the detail (stack trace) for one crash. */
+@Serializable
+data class CrashDetailKey(val crashId: String) : NavKey
+
+/** Opens the Commit History (build provenance) screen. */
+@Serializable
+data object CommitHistoryKey : NavKey

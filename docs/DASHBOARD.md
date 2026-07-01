@@ -336,9 +336,41 @@ carries an `Authorization` header to demonstrate redaction) and
 > Storage is in-memory for now (cleared on `Pulse.shutdown()`); the SQLDelight-backed
 > store + Ktor-client capture arrive in Phase 3 (`ARCHITECTURE.md` §7.4).
 
-## 12. Known limitations / TODO
+## 12. Crashes & Commit History panels
 
-- Placeholder panels (API Requests, Crashes, Commit History) have no data — Phase 3.
+Both are full features, wired like Network (model in `pulse-core`, capture/read in
+`pulse-android`, screens + NavKeys in the dashboard).
+
+### Crashes (`PulseCrashReporter`, `CrashesScreens.kt`)
+- `PulseCrashReporter.install()` sets a **chaining** `Thread.UncaughtExceptionHandler`:
+  it records the fatal crash, then delegates to the previously-installed handler (never
+  swallows Crashlytics/Play).
+- A fatal crash kills the process, so each report is **persisted to a file**
+  (`filesDir/pulsekit_crashes.json`) synchronously and **re-loaded on next launch** →
+  the crash is visible after relaunch (verified: FATAL survives a forced crash).
+- Non-fatal/handled exceptions: `PulseAndroid.recordException(throwable)`.
+- `Pulse.crashes: StateFlow<List<CrashReport>>`. UI: list with FATAL (red) / LOGGED
+  (amber) pills → detail with the full, selectable stack trace.
+
+### Commit History (`PulseProvenance`, `CommitHistoryScreen.kt`)
+- **Build time**: the sample's `build.gradle.kts` has a `generatePulseProvenance` task
+  that runs `git` (branch, HEAD, dirty, last 20 commits via `ProcessBuilder`) and writes
+  `assets/pulsekit_provenance.json`. It's wired before `merge*Assets` and degrades to an
+  empty record if git is unavailable — never fails the build.
+- **Runtime**: `PulseProvenance.load()` reads that asset into a `BuildProvenance`, exposed
+  as `Pulse.provenance`. UI: a header (branch + DIRTY chip + HEAD + build time) over the
+  commit list (sha · subject · author · time).
+- This is the interim home for the provenance-generation logic; §7.16 moves it into a
+  reusable Gradle plugin so any app gets it without copying the task.
+
+### Wiring
+- `PulseAndroid.initialize()` installs the crash handler (`enableCrash`) and loads
+  provenance (`enableCommitHistory`).
+- NavKeys: `CrashListKey` / `CrashDetailKey` / `CommitHistoryKey`; the grid routes the
+  `crashes` and `commits` tiles to them via `destinationFor()`.
+
+## 13. Known limitations / TODO
+
 - Long device model names truncate on the tile (full value shows in detail).
 - Compose `@Preview`s are not yet added for the grid/detail (device-only for now).
 - Migrates to `pulse-compose-ui` in Phase 3; keep `DashboardModel` UI-free to ease

@@ -77,9 +77,9 @@ No per-screen wiring is required — integrating the SDK is enough.
 
 `PulseDashboardActivity` is a Compose screen: an **adaptive grid of property panels**
 under a colorful collapsing top bar, each opening a detail view on tap via
-**Navigation 3** (`NavKey` back stack). App Info, Device, Session, Events, and
-FPS/Jank show real live data now; API Requests, Crashes, and Commit History are
-wired-up placeholders that fill in during Phase 3. Themed for light/dark via the
+**Navigation 3** (`NavKey` back stack). App Info, Device, Session, Events,
+FPS/Jank, **API Requests** (OkHttp capture), **Crashes** (uncaught + handled, survives
+relaunch), and **Commit History** (build-time git provenance) are all live. Themed for light/dark via the
 brand palette (no dynamic color — a dev tool should look identical everywhere), with
 the status bar tuned to match the colored bar. In Phase 3 the shared parts migrate
 to `pulse-compose-ui` (Compose Multiplatform).

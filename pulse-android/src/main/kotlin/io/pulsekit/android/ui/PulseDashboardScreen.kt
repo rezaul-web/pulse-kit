@@ -86,7 +86,15 @@ fun PulseDashboard(
         Pulse.events.collect { event -> stats = stats.reduce(event) }
     }
     val transactions by Pulse.network.collectAsState()
-    val panels = buildPanels(context, stats, apiCount = transactions.size)
+    val crashes by Pulse.crashes.collectAsState()
+    val provenance = Pulse.provenance
+    val panels = buildPanels(
+        context = context,
+        stats = stats,
+        apiCount = transactions.size,
+        crashCount = crashes.size,
+        provenance = provenance,
+    )
 
     val backStack = rememberNavBackStack(HomeKey)
 
@@ -98,9 +106,7 @@ fun PulseDashboard(
             entry<HomeKey> {
                 DashboardGridScreen(
                     panels = panels,
-                    onOpen = { panel ->
-                        backStack.add(if (panel.id == "api") ApiListKey else PanelKey(panel.id))
-                    },
+                    onOpen = { panel -> backStack.add(destinationFor(panel.id)) },
                     onResetCounters = { stats = LiveStats() },
                     onClose = onClose,
                 )
@@ -124,8 +130,32 @@ fun PulseDashboard(
                     ApiTransactionScreen(txn = txn, onBack = { backStack.removeLastOrNull() })
                 }
             }
+            entry<CrashListKey> {
+                CrashListScreen(
+                    crashes = crashes,
+                    onOpen = { backStack.add(CrashDetailKey(it.id)) },
+                    onBack = { backStack.removeLastOrNull() },
+                )
+            }
+            entry<CrashDetailKey> { key ->
+                val crash = crashes.firstOrNull { it.id == key.crashId }
+                if (crash != null) {
+                    CrashDetailScreen(crash = crash, onBack = { backStack.removeLastOrNull() })
+                }
+            }
+            entry<CommitHistoryKey> {
+                CommitHistoryScreen(provenance = provenance, onBack = { backStack.removeLastOrNull() })
+            }
         },
     )
+}
+
+/** Map a grid tile to its navigation destination (custom screens vs. property detail). */
+private fun destinationFor(panelId: String): NavKey = when (panelId) {
+    "api" -> ApiListKey
+    "crashes" -> CrashListKey
+    "commits" -> CommitHistoryKey
+    else -> PanelKey(panelId)
 }
 
 /** Home destination: collapsing top bar over the adaptive panel grid. */

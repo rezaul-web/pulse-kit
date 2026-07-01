@@ -47,10 +47,17 @@ fun LiveStats.reduce(event: PulseEvent): LiveStats = copy(
 )
 
 /**
- * Build the full panel list, folding in the current [stats] snapshot and the
- * number of captured API requests ([apiCount]).
+ * Build the full panel list, folding in the current [stats] snapshot, the number of
+ * captured API requests ([apiCount]) and crashes ([crashCount]), and the build
+ * [provenance] (for Commit History).
  */
-fun buildPanels(context: Context, stats: LiveStats, apiCount: Int = 0): List<PulsePanel> = listOf(
+fun buildPanels(
+    context: Context,
+    stats: LiveStats,
+    apiCount: Int = 0,
+    crashCount: Int = 0,
+    provenance: io.pulsekit.core.BuildProvenance = io.pulsekit.core.BuildProvenance.EMPTY,
+): List<PulsePanel> = listOf(
     PulsePanel(
         id = "app_info",
         title = "App Info",
@@ -113,17 +120,21 @@ fun buildPanels(context: Context, stats: LiveStats, apiCount: Int = 0): List<Pul
         id = "crashes",
         title = "Crashes",
         badge = "Cr",
-        summary = "Phase 3",
-        available = false,
-        properties = emptyList(),
+        summary = if (crashCount == 1) "1 crash" else "$crashCount crashes",
+        available = true,
+        properties = emptyList(), // opens the dedicated crash list screen
     ),
     PulsePanel(
         id = "commits",
         title = "Commit History",
         badge = "Gt",
-        summary = "Phase 3",
-        available = false,
-        properties = emptyList(),
+        summary = when {
+            provenance.isEmpty -> "no data"
+            provenance.branch.isNotBlank() -> provenance.branch
+            else -> "${provenance.history.size} commits"
+        },
+        available = !provenance.isEmpty,
+        properties = emptyList(), // opens the dedicated commit history screen
     ),
 )
 

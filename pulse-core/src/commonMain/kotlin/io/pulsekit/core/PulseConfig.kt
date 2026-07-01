@@ -19,6 +19,12 @@ class PulseConfig {
     var enableAnr: Boolean = true
     var enableLogs: Boolean = true
 
+    /** Capture uncaught + handled exceptions for the Crashes panel. */
+    var enableCrash: Boolean = true
+
+    /** Load build-time git provenance for the Commit History panel. */
+    var enableCommitHistory: Boolean = true
+
     /** Android floating debug overlay. */
     var overlayEnabled: Boolean = true
 

@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -138,8 +139,20 @@ private fun SampleScreen() {
         ) {
             Text("Make API calls", style = MaterialTheme.typography.labelLarge)
         }
+        OutlinedButton(
+            onClick = { PulseAndroid.recordException(RuntimeException("Sample handled error")) },
+            modifier = Modifier.padding(top = 12.dp),
+        ) {
+            Text("Log a non-fatal error", style = MaterialTheme.typography.labelLarge)
+        }
+        TextButton(
+            onClick = { throw RuntimeException("Sample fatal crash from the PulseKit demo") },
+            modifier = Modifier.padding(top = 4.dp),
+        ) {
+            Text("Crash the app", color = MaterialTheme.colorScheme.error)
+        }
         Text(
-            text = "Open the PulseKit notification → API Requests to inspect them.",
+            text = "Open the PulseKit notification → API Requests / Crashes / Commit History to inspect.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
