@@ -328,7 +328,9 @@ One line — add the interceptor to your client; everything else is automatic:
 OkHttpClient.Builder().addInterceptor(PulseOkHttpInterceptor()).build()
 ```
 `PulseOkHttpInterceptor(maxBodyBytes = …, redactHeaders = …)` is configurable. The
-sample's `SampleApi` shows a GET, a POST-with-body, and a 404.
+sample's `SampleApi` hits public endpoints — `httpbin.org` (GET, and a POST that
+carries an `Authorization` header to demonstrate redaction) and
+`jsonplaceholder.typicode.com` (GET/POST), plus a 404.
 
 > Storage is in-memory for now (cleared on `Pulse.shutdown()`); the SQLDelight-backed
 > store + Ktor-client capture arrive in Phase 3 (`ARCHITECTURE.md` §7.4).

@@ -9,8 +9,13 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * Tiny demo API client. The only PulseKit integration is the one interceptor line —
- * every call it makes then shows up in the dashboard's **API Requests** panel.
+ * Tiny demo API client hitting freely-available public endpoints. The only PulseKit
+ * integration is the one interceptor line — every call then shows up in the
+ * dashboard's **API Requests** panel.
+ *
+ * Endpoints used (all public, no key required):
+ * - https://httpbin.org — echoes back the request (great for the Request/Response tabs)
+ * - https://jsonplaceholder.typicode.com — fake REST API for GET/POST
  */
 object SampleApi {
 
@@ -18,21 +23,38 @@ object SampleApi {
         .addInterceptor(PulseOkHttpInterceptor())
         .build()
 
-    private const val BASE = "https://jsonplaceholder.typicode.com"
-
-    /** Fire a few representative calls: a GET, a POST with a JSON body, and a 404. */
+    /** Fire a spread of representative public calls: GETs, POSTs-with-body, and a 404. */
     suspend fun runDemoCalls() = withContext(Dispatchers.IO) {
-        runCatching { get("$BASE/posts/1") }
-        runCatching { postJson("$BASE/posts", """{"title":"PulseKit","body":"hello from the sample","userId":1}""") }
-        runCatching { get("$BASE/this/path/does/not/exist") } // 404 → red status pill
+        // GET with a custom header (httpbin echoes it in the response).
+        runCatching {
+            get("https://httpbin.org/get?source=pulsekit") { header("X-Pulse-Demo", "true") }
+        }
+        // POST JSON with an Authorization header — shows body capture AND header redaction.
+        runCatching {
+            postJson(
+                url = "https://httpbin.org/post",
+                json = """{"title":"PulseKit","body":"hello from the sample","userId":1}""",
+            ) { header("Authorization", "Bearer super-secret-token") }
+        }
+        // A classic public GET.
+        runCatching { get("https://jsonplaceholder.typicode.com/todos/1") }
+        // A public POST that returns the created resource.
+        runCatching {
+            postJson(
+                url = "https://jsonplaceholder.typicode.com/posts",
+                json = """{"title":"foo","body":"bar","userId":1}""",
+            )
+        }
+        // A deliberate 404 → red status pill.
+        runCatching { get("https://httpbin.org/status/404") }
     }
 
-    private fun get(url: String) {
-        client.newCall(Request.Builder().url(url).build()).execute().use { /* body peeked by interceptor */ }
+    private fun get(url: String, config: Request.Builder.() -> Unit = {}) {
+        client.newCall(Request.Builder().url(url).apply(config).build()).execute().use { /* peeked */ }
     }
 
-    private fun postJson(url: String, json: String) {
+    private fun postJson(url: String, json: String, config: Request.Builder.() -> Unit = {}) {
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
-        client.newCall(Request.Builder().url(url).post(body).build()).execute().use { }
+        client.newCall(Request.Builder().url(url).post(body).apply(config).build()).execute().use { }
     }
 }
