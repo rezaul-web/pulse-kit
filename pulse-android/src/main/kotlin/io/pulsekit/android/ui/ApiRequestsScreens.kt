@@ -1,11 +1,15 @@
 package io.pulsekit.android.ui
 
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -37,14 +40,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -190,12 +194,12 @@ private fun EmptyRequests(padding: PaddingValues) {
 
 private val TABS = listOf("cURL", "Request", "Response")
 
-/** Tabbed detail for one captured request. */
+/** Tabbed detail for one captured request. Each tab is tap/long-press to copy. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApiTransactionScreen(txn: NetworkTransaction, onBack: () -> Unit) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val clipboard = LocalClipboardManager.current
+    val copy = rememberCopyAction()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -204,7 +208,7 @@ fun ApiTransactionScreen(txn: NetworkTransaction, onBack: () -> Unit) {
                 title = "${txn.method}  ${txn.path}",
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = { clipboard.setText(AnnotatedString(txn.toCurl())) }) {
+                    IconButton(onClick = { copy(txn.toCurl()) }) {
                         Icon(Icons.Filled.Share, contentDescription = "Copy cURL")
                     }
                 },
@@ -231,9 +235,15 @@ fun ApiTransactionScreen(txn: NetworkTransaction, onBack: () -> Unit) {
                 }
             }
             when (selectedTab) {
-                0 -> CodeBlock(txn.toCurl())
-                1 -> RequestTab(txn)
-                else -> ResponseTab(txn)
+                0 -> CopyableTab(copyText = txn.toCurl()) {
+                    CodeBlock(txn.toCurl())
+                }
+                1 -> CopyableTab(copyText = requestText(txn)) {
+                    RequestSections(txn)
+                }
+                else -> CopyableTab(copyText = responseText(txn)) {
+                    ResponseSections(txn)
+                }
             }
         }
     }
@@ -257,42 +267,32 @@ private fun SummaryLine(txn: NetworkTransaction) {
     }
 }
 
+/** Request tab: url, headers, then the formatted request body. */
 @Composable
-private fun RequestTab(txn: NetworkTransaction) {
-    TabScroll {
-        SectionLabel("URL")
-        MonoText(txn.url)
-        txn.error?.let {
-            SectionLabel("Error")
-            MonoText(it, color = ApiColors.Error)
-        }
-        SectionLabel("Headers")
-        Headers(txn.requestHeaders)
-        SectionLabel("Body")
-        val body = txn.requestBody
-        if (body.isNullOrEmpty()) {
-            EmptyValue("No request body")
-        } else {
-            CodeContent(prettyBody(body, txn.requestContentType))
-        }
+private fun ColumnScope.RequestSections(txn: NetworkTransaction) {
+    SectionLabel("URL")
+    MonoText(txn.url)
+    txn.error?.let {
+        SectionLabel("Error")
+        MonoText(it, color = ApiColors.Error)
     }
+    SectionLabel("Headers")
+    Headers(txn.requestHeaders)
+    SectionLabel("Body")
+    val body = txn.requestBody
+    if (body.isNullOrEmpty()) EmptyValue("No request body") else CodeContent(prettyBody(body, txn.requestContentType))
 }
 
+/** Response tab: the response DATA (body) first, then status and headers. */
 @Composable
-private fun ResponseTab(txn: NetworkTransaction) {
-    TabScroll {
-        SectionLabel("Status")
-        MonoText(if (txn.isFailed) "Failed: ${txn.error}" else "${txn.statusCode} ${txn.responseMessage}")
-        SectionLabel("Headers")
-        Headers(txn.responseHeaders)
-        SectionLabel("Body")
-        val body = txn.responseBody
-        if (body.isNullOrEmpty()) {
-            EmptyValue("No response body")
-        } else {
-            CodeContent(prettyBody(body, txn.responseContentType))
-        }
-    }
+private fun ColumnScope.ResponseSections(txn: NetworkTransaction) {
+    SectionLabel("Response data")
+    val body = txn.responseBody
+    if (body.isNullOrEmpty()) EmptyValue("No response body") else CodeContent(prettyBody(body, txn.responseContentType))
+    SectionLabel("Status")
+    MonoText(if (txn.isFailed) "Failed: ${txn.error}" else "${txn.statusCode} ${txn.responseMessage}")
+    SectionLabel("Headers")
+    Headers(txn.responseHeaders)
 }
 
 // ---------------------------------------------------------------------------
@@ -331,17 +331,37 @@ private fun ApiTopBar(
     )
 }
 
-/** Vertically scrollable content column for a tab. */
+/**
+ * Scrollable tab body that copies its whole [copyText] on tap **or** long-press,
+ * with a confirmation toast. A hint row makes the affordance discoverable.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TabScroll(content: @Composable () -> Unit) {
+private fun CopyableTab(copyText: String, content: @Composable ColumnScope.() -> Unit) {
+    val copy = rememberCopyAction()
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .combinedClickable(
+                onClick = { copy(copyText) },
+                onLongClick = { copy(copyText) },
+            )
             .padding(16.dp),
     ) {
+        CopyHint()
         content()
     }
+}
+
+@Composable
+private fun CopyHint() {
+    Text(
+        text = "Tap or long-press to copy",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.outline,
+        modifier = Modifier.padding(bottom = 4.dp),
+    )
 }
 
 @Composable
@@ -383,14 +403,12 @@ private fun Headers(headers: List<NetworkHeader>) {
 
 @Composable
 private fun MonoText(text: String, color: Color = MaterialTheme.colorScheme.onSurface) {
-    SelectionContainer {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            fontFamily = FontFamily.Monospace,
-            color = color,
-        )
-    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        fontFamily = FontFamily.Monospace,
+        color = color,
+    )
 }
 
 @Composable
@@ -402,39 +420,75 @@ private fun EmptyValue(text: String) {
     )
 }
 
-/** A full-height monospace code block (for the whole cURL tab). */
+/** A monospace code block on a surfaceVariant background; long lines wrap. */
 @Composable
-private fun CodeBlock(text: String) {
+private fun ColumnScope.CodeBlock(text: String) {
+    CodeContent(text)
+}
+
+@Composable
+private fun CodeContent(text: String) {
     Box(
         Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(12.dp),
     ) {
-        CodeContent(text)
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
-/** Scrollable (both axes) monospace block on a surfaceVariant background. */
+// ---------------------------------------------------------------------------
+// Formatting & clipboard helpers
+// ---------------------------------------------------------------------------
+
+/** Returns a `copy(text)` action that writes to the clipboard and toasts. */
 @Composable
-private fun CodeContent(text: String) {
-    SelectionContainer {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .horizontalScroll(rememberScrollState())
-                .padding(12.dp),
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+private fun rememberCopyAction(): (String) -> Unit {
+    val clipboard: ClipboardManager = LocalClipboardManager.current
+    val context: Context = LocalContext.current
+    return remember(clipboard, context) {
+        { text: String ->
+            clipboard.setText(AnnotatedString(text))
+            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
         }
     }
 }
+
+/** Whole-tab plain text for the Request tab (for copy). */
+private fun requestText(txn: NetworkTransaction): String = buildString {
+    appendLine("${txn.method} ${txn.url}")
+    txn.error?.let { appendLine("Error: $it") }
+    if (txn.requestHeaders.isNotEmpty()) {
+        appendLine()
+        txn.requestHeaders.forEach { appendLine("${it.name}: ${it.value}") }
+    }
+    val body = txn.requestBody
+    if (!body.isNullOrEmpty()) {
+        appendLine()
+        appendLine(prettyBody(body, txn.requestContentType))
+    }
+}.trim()
+
+/** Whole-tab plain text for the Response tab (data first, for copy). */
+private fun responseText(txn: NetworkTransaction): String = buildString {
+    val body = txn.responseBody
+    if (!body.isNullOrEmpty()) {
+        appendLine(prettyBody(body, txn.responseContentType))
+        appendLine()
+    }
+    appendLine(if (txn.isFailed) "Failed: ${txn.error}" else "Status: ${txn.statusCode} ${txn.responseMessage}")
+    if (txn.responseHeaders.isNotEmpty()) {
+        appendLine()
+        txn.responseHeaders.forEach { appendLine("${it.name}: ${it.value}") }
+    }
+}.trim()
 
 /** Pretty-print a JSON body; return the original text for anything else. */
 private fun prettyBody(body: String, contentType: String?): String {
