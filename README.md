@@ -69,13 +69,15 @@ No per-screen wiring is required — integrating the SDK is enough.
 
   If the permission is denied, the SDK silently no-ops (the host owns the prompt).
 
-`PulseDashboardActivity` is a Compose screen: a **grid of property panels**, each
-opening a detail view on tap. App Info, Device, Session, Events, and FPS/Jank show
-real live data now; API Requests, Crashes, and Commit History are wired-up
-placeholders that fill in during Phase 3. Themed for light/dark via the brand
-palette (no dynamic color — a dev tool should look identical everywhere). In Phase 3
-the shared parts migrate to `pulse-compose-ui` (Compose Multiplatform); see
-`ARCHITECTURE.md` §7.0/§7.14.
+`PulseDashboardActivity` is a Compose screen: a **grid of property panels** under a
+collapsing top bar, each opening a detail view on tap. App Info, Device, Session,
+Events, and FPS/Jank show real live data now; API Requests, Crashes, and Commit
+History are wired-up placeholders that fill in during Phase 3. Themed for light/dark
+via the brand palette (no dynamic color — a dev tool should look identical everywhere).
+In Phase 3 the shared parts migrate to `pulse-compose-ui` (Compose Multiplatform).
+
+**Full design & "how to add a panel":** see [`docs/DASHBOARD.md`](docs/DASHBOARD.md)
+(also `ARCHITECTURE.md` §7.0/§7.14).
 
 ## Next (Phase 2 / 3)
 

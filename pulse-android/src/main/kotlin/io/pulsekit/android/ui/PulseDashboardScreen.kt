@@ -15,21 +15,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,32 +38,81 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.pulsekit.runtime.Pulse
+
+/** Layout constants for the dashboard, in one place for easy tuning. */
+private object DashboardDefaults {
+    const val GRID_COLUMNS = 2
+    val ScreenPadding = 16.dp
+    val GridSpacing = 12.dp
+    val TilePadding = 14.dp
+    val TileHeight = 116.dp
+    val BadgeSize = 34.dp
+    val BadgeCorner = 10.dp
+    val CardCorner = 16.dp
+}
 
 /**
- * The PulseKit dashboard: a grid of property panels, each opening a detail
- * screen on tap. Real data now for App Info / Device / Session / Events / FPS;
- * API Requests / Crashes / Commit History are Phase 3 placeholders.
+ * Stateful host for the whole dashboard. Owns:
+ * - live [LiveStats] collected from [Pulse.events],
+ * - which panel (if any) is open, and
+ * - the [Scaffold] + top bars (grid vs. detail) with collapsing-bar scroll.
+ *
+ * @param onClose invoked by the grid's close action (the Activity passes `finish`).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PulseDashboardScreen(
-    panels: List<PulsePanel>,
-    contentPadding: PaddingValues,
+fun PulseDashboard(
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
-    val selected = remember(selectedId, panels) { panels.firstOrNull { it.id == selectedId } }
+    val context = LocalContext.current
 
-    if (selected == null) {
-        PanelGrid(panels = panels, contentPadding = contentPadding) { selectedId = it.id }
-    } else {
-        BackHandler { selectedId = null }
-        PanelDetail(panel = selected, contentPadding = contentPadding) { selectedId = null }
+    // Live counters: fold each event into LiveStats via the pure reducer.
+    var stats by remember { mutableStateOf(LiveStats()) }
+    LaunchedEffect(Unit) {
+        Pulse.events.collect { event -> stats = stats.reduce(event) }
+    }
+
+    val panels = buildPanels(context, stats)
+    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selected = panels.firstOrNull { it.id == selectedId }
+
+    // Detail → grid on system back.
+    BackHandler(enabled = selected != null) { selectedId = null }
+
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    Scaffold(
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            if (selected == null) {
+                DashboardTopBar(
+                    scrollBehavior = scrollBehavior,
+                    onResetCounters = { stats = LiveStats() },
+                    onClose = onClose,
+                )
+            } else {
+                DetailTopBar(panel = selected, onBack = { selectedId = null })
+            }
+        },
+    ) { innerPadding ->
+        if (selected == null) {
+            PanelGrid(panels = panels, contentPadding = innerPadding, onOpen = { selectedId = it.id })
+        } else {
+            PanelDetail(panel = selected, contentPadding = innerPadding)
+        }
     }
 }
 
+/** The 2-column grid of panel tiles. */
 @Composable
 private fun PanelGrid(
     panels: List<PulsePanel>,
@@ -71,45 +120,32 @@ private fun PanelGrid(
     onOpen: (PulsePanel) -> Unit,
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+        columns = GridCells.Fixed(DashboardDefaults.GRID_COLUMNS),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
+            start = DashboardDefaults.ScreenPadding,
+            end = DashboardDefaults.ScreenPadding,
             top = contentPadding.calculateTopPadding() + 8.dp,
             bottom = contentPadding.calculateBottomPadding() + 24.dp,
         ),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(DashboardDefaults.GridSpacing),
+        verticalArrangement = Arrangement.spacedBy(DashboardDefaults.GridSpacing),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.padding(top = 8.dp, bottom = 8.dp)) {
-                Text(
-                    "PulseKit",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    "Profiler dashboard",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
         items(panels, key = { it.id }) { panel ->
             PanelTile(panel = panel, onClick = { onOpen(panel) })
         }
     }
 }
 
+/** A single tile: badge, title, and a one-line live summary. */
 @Composable
 private fun PanelTile(panel: PulsePanel, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(116.dp)
+            .height(DashboardDefaults.TileHeight)
             .clickable(onClick = onClick),
+        shape = RoundedCornerShape(DashboardDefaults.CardCorner),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -118,7 +154,7 @@ private fun PanelTile(panel: PulsePanel, onClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(14.dp),
+                .padding(DashboardDefaults.TilePadding),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Badge(text = panel.badge, muted = !panel.available)
@@ -146,76 +182,55 @@ private fun PanelTile(panel: PulsePanel, onClick: () -> Unit) {
     }
 }
 
+/** The colored initials badge on a tile (muted for Phase-3 placeholders). */
 @Composable
 private fun Badge(text: String, muted: Boolean) {
-    val bg = if (muted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
-    val fg = if (muted) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onPrimary
+    val background = if (muted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
+    val foreground = if (muted) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onPrimary
     Box(
         modifier = Modifier
-            .size(34.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(bg),
+            .size(DashboardDefaults.BadgeSize)
+            .clip(RoundedCornerShape(DashboardDefaults.BadgeCorner))
+            .background(background),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            color = fg,
+            color = foreground,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
         )
     }
 }
 
+/** A panel's detail body: property rows in a card, or a Phase-3 empty state. */
 @Composable
-private fun PanelDetail(
-    panel: PulsePanel,
-    contentPadding: PaddingValues,
-    onBack: () -> Unit,
-) {
+private fun PanelDetail(panel: PulsePanel, contentPadding: PaddingValues) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(
                 top = contentPadding.calculateTopPadding(),
                 bottom = contentPadding.calculateBottomPadding(),
             ),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            Text(
-                panel.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-
         if (panel.properties.isEmpty()) {
             EmptyPanel(panel)
         } else {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = DashboardDefaults.ScreenPadding, vertical = 8.dp),
+                shape = RoundedCornerShape(DashboardDefaults.CardCorner),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 ),
             ) {
-                Column(Modifier.padding(horizontal = 16.dp)) {
-                    panel.properties.forEachIndexed { index, prop ->
-                        PropertyRow(prop)
+                Column(Modifier.padding(horizontal = DashboardDefaults.ScreenPadding)) {
+                    panel.properties.forEachIndexed { index, property ->
+                        PropertyRow(property)
                         if (index != panel.properties.lastIndex) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
@@ -226,8 +241,9 @@ private fun PanelDetail(
     }
 }
 
+/** One label/value row; values are monospaced for scannability. */
 @Composable
-private fun PropertyRow(prop: PulseProperty) {
+private fun PropertyRow(property: PulseProperty) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -235,14 +251,14 @@ private fun PropertyRow(prop: PulseProperty) {
         verticalAlignment = Alignment.Top,
     ) {
         Text(
-            prop.label,
+            property.label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(end = 16.dp),
         )
         Spacer(Modifier.weight(1f))
         Text(
-            prop.value,
+            property.value,
             style = MaterialTheme.typography.bodyMedium,
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurface,
@@ -250,11 +266,12 @@ private fun PropertyRow(prop: PulseProperty) {
     }
 }
 
+/** Placeholder body for panels whose data arrives in Phase 3. */
 @Composable
 private fun EmptyPanel(panel: PulsePanel) {
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(32.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -266,8 +283,8 @@ private fun EmptyPanel(panel: PulsePanel) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "This panel is part of the full Compose dashboard " +
-                    "(see ARCHITECTURE.md §7.0). It's wired up but has no data yet.",
+                "This panel is wired into the dashboard (see ARCHITECTURE.md §7.0) " +
+                    "but has no data yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

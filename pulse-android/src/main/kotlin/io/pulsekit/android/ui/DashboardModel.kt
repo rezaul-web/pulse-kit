@@ -6,6 +6,8 @@ import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.util.DisplayMetrics
 import androidx.core.content.pm.PackageInfoCompat
+import io.pulsekit.core.FrameDropped
+import io.pulsekit.core.PulseEvent
 import io.pulsekit.runtime.Pulse
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,6 +34,16 @@ data class LiveStats(
     val eventCount: Int = 0,
     val lastEvent: String = "—",
     val droppedFrames: Int = 0,
+)
+
+/**
+ * Fold a single [PulseEvent] into the running [LiveStats]. Pure and total, so it
+ * is trivially testable and keeps the collection site in the UI free of logic.
+ */
+fun LiveStats.reduce(event: PulseEvent): LiveStats = copy(
+    eventCount = eventCount + 1,
+    lastEvent = event::class.simpleName ?: "Event",
+    droppedFrames = droppedFrames + if (event is FrameDropped) 1 else 0,
 )
 
 /** Build the full panel list, folding in the current [stats] snapshot. */
