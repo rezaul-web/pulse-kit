@@ -400,7 +400,27 @@ Charts are native Compose `Canvas` micro-viz in the existing Material 3 palette
 `MetricsScreens.kt`. NavKeys: `FpsKey` / `MemoryKey` / `StartupKey`; gated by
 `enableFPS` / `enableMemory` / `enableStartup`.
 
-## 14. Known limitations / TODO
+## 14. Compose recomposition heatmap (`Recompositions` panel)
+
+An opt-in overlay + panel for spotting recomposition hotspots.
+
+- **`Modifier.pulseRecomposeHeatmap(tag)`** (`RecomposeHeatmap.kt`) — a
+  `ModifierNodeElement` that forces `update()` to run on every recomposition (the
+  recompose-highlighter trick: `equals()` returns `false`). Each call increments a heat
+  counter, draws a border that lerps **blue → red** with the count, and cools back down
+  after ~1.5 s. It also reports the recomposition to `Pulse.recordRecomposition(tag)`.
+- **Store:** `RecompositionRecorder` (pulse-core) keeps per-tag counts, exposed as
+  `Pulse.recompositions`. The **Recompositions** panel lists tags hottest-first with a
+  heat swatch + `N×` count.
+- **Runtime limitation:** counts exist only where the modifier is applied — there's no
+  runtime hook for *every* composable (that needs Compose compiler metrics). So it's
+  opt-in per composable.
+- **Demo:** the sample's "Recomposition heatmap demo" screen shows a thrashing ticker
+  (hot), a stable label (never recomposes → no border, absent from the panel), and a
+  button that recomposes with its parent scope — a real "unstable lambda" smell the
+  heatmap exposes.
+
+## 15. Known limitations / TODO
 
 - Long device model names truncate on the tile (full value shows in detail).
 - Compose `@Preview`s are not yet added for the grid/detail (device-only for now).

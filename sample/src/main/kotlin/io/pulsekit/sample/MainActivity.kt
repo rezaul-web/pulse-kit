@@ -8,12 +8,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,12 +27,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -36,8 +41,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.pulsekit.android.PulseAndroid
+import io.pulsekit.android.ui.pulseRecomposeHeatmap
 import io.pulsekit.runtime.Pulse
 import io.pulsekit.sample.ui.theme.PulseKitTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -54,11 +62,16 @@ class MainActivity : ComponentActivity() {
         ensureNotificationPermission()
         setContent {
             PulseKitTheme {
+                var showRecompDemo by remember { mutableStateOf(false) }
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    SampleScreen()
+                    if (showRecompDemo) {
+                        RecompositionDemoScreen(onBack = { showRecompDemo = false })
+                    } else {
+                        SampleScreen(onOpenRecompDemo = { showRecompDemo = true })
+                    }
                 }
             }
         }
@@ -77,7 +90,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun SampleScreen() {
+private fun SampleScreen(onOpenRecompDemo: () -> Unit = {}) {
     var taps by remember { mutableIntStateOf(0) }
     Column(
         modifier = Modifier
@@ -145,6 +158,12 @@ private fun SampleScreen() {
         ) {
             Text("Log a non-fatal error", style = MaterialTheme.typography.labelLarge)
         }
+        OutlinedButton(
+            onClick = onOpenRecompDemo,
+            modifier = Modifier.padding(top = 12.dp),
+        ) {
+            Text("Recomposition heatmap demo", style = MaterialTheme.typography.labelLarge)
+        }
         TextButton(
             onClick = { throw RuntimeException("Sample fatal crash from the PulseKit demo") },
             modifier = Modifier.padding(top = 4.dp),
@@ -158,6 +177,67 @@ private fun SampleScreen() {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 16.dp),
         )
+    }
+}
+
+@Composable
+private fun RecompositionDemoScreen(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            "Recomposition heatmap",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            "Borders heat up (blue → red) the more a composable recomposes. Open " +
+                "PulseKit → Recompositions for the counts.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // Thrashing: recomposes ~8×/sec on a ticker → hot border.
+        var tick by remember { mutableIntStateOf(0) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(120)
+                tick++
+            }
+        }
+        HeatCard(text = "Thrashing ticker: $tick", tag = "thrashing-ticker")
+
+        // Stable: never recomposes → no border.
+        HeatCard(text = "Stable label (never changes)", tag = "stable-label")
+
+        // Manual: heats up only when tapped.
+        var taps by remember { mutableIntStateOf(0) }
+        Button(
+            onClick = { taps++ },
+            modifier = Modifier.pulseRecomposeHeatmap("manual-button"),
+        ) {
+            Text("Tapped $taps times")
+        }
+
+        Spacer(Modifier.weight(1f))
+        OutlinedButton(onClick = onBack) { Text("Back") }
+    }
+}
+
+@Composable
+private fun HeatCard(text: String, tag: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pulseRecomposeHeatmap(tag)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+            .padding(16.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.titleMedium)
     }
 }
 

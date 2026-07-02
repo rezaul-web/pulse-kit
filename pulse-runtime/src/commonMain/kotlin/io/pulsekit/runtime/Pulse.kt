@@ -15,6 +15,8 @@ import io.pulsekit.core.MemorySample
 import io.pulsekit.core.NetworkRecorder
 import io.pulsekit.core.NetworkTransaction
 import io.pulsekit.core.PulseConfig
+import io.pulsekit.core.RecompositionRecorder
+import io.pulsekit.core.RecompositionStat
 import io.pulsekit.core.StartupHolder
 import io.pulsekit.core.StartupMetric
 import io.pulsekit.core.PulseDispatchers
@@ -44,6 +46,7 @@ object Pulse {
     private var crashRecorder: CrashRecorder = InMemoryCrashRecorder()
     private var frameAggregator: FrameAggregator = FrameAggregator()
     private var memoryRecorder: MemoryRecorder = MemoryRecorder()
+    private var recompositionRecorder: RecompositionRecorder = RecompositionRecorder()
     private val startupHolder: StartupHolder = StartupHolder()
 
     /** Read-only stream of all events for embedding UI or custom tooling. */
@@ -68,6 +71,9 @@ object Pulse {
     /** Cold-start timeline, captured once per process (Startup panel). */
     val startup: StateFlow<StartupMetric?> get() = startupHolder.metric
 
+    /** Per-tag recomposition counts (Recompositions panel / heatmap). */
+    val recompositions: StateFlow<List<RecompositionStat>> get() = recompositionRecorder.stats
+
     /**
      * Initialize PulseKit. Idempotent — a second call is a logged no-op.
      *
@@ -89,6 +95,7 @@ object Pulse {
         crashRecorder = InMemoryCrashRecorder()
         frameAggregator = FrameAggregator()
         memoryRecorder = MemoryRecorder()
+        recompositionRecorder = RecompositionRecorder()
         pluginManager = PluginManager(
             dispatchers = dispatchers,
             eventSink = bus,
@@ -165,6 +172,11 @@ object Pulse {
     /** Set the cold-start timeline (captured once per process). */
     fun setStartup(metric: StartupMetric) {
         startupHolder.set(metric)
+    }
+
+    /** Report a recomposition of the composable tagged [tag] (from the heatmap modifier). */
+    fun recordRecomposition(tag: String, nowMs: Long) {
+        recompositionRecorder.record(tag, nowMs)
     }
 
     /** Register a custom feature plugin at runtime. */

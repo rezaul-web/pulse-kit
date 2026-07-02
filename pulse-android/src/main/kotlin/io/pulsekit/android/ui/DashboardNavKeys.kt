@@ -48,3 +48,7 @@ data object MemoryKey : NavKey
 /** Opens the Startup timeline screen. */
 @Serializable
 data object StartupKey : NavKey
+
+/** Opens the Recompositions (Compose heatmap counts) screen. */
+@Serializable
+data object RecompositionsKey : NavKey

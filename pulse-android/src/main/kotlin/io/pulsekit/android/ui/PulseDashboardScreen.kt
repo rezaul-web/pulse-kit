@@ -91,6 +91,7 @@ fun PulseDashboard(
     val fps by Pulse.fps.collectAsState()
     val memory by Pulse.memory.collectAsState()
     val startup by Pulse.startup.collectAsState()
+    val recompositions by Pulse.recompositions.collectAsState()
     val panels = buildPanels(
         context = context,
         stats = stats,
@@ -100,6 +101,7 @@ fun PulseDashboard(
         fps = fps,
         memory = memory,
         startup = startup,
+        recompositions = recompositions,
     )
 
     val backStack = rememberNavBackStack(HomeKey)
@@ -161,6 +163,9 @@ fun PulseDashboard(
             entry<StartupKey> {
                 StartupScreen(metric = startup, onBack = { backStack.removeLastOrNull() })
             }
+            entry<RecompositionsKey> {
+                RecompositionsScreen(stats = recompositions, onBack = { backStack.removeLastOrNull() })
+            }
         },
     )
 }
@@ -173,6 +178,7 @@ private fun destinationFor(panelId: String): NavKey = when (panelId) {
     "fps" -> FpsKey
     "memory" -> MemoryKey
     "startup" -> StartupKey
+    "recompositions" -> RecompositionsKey
     else -> PanelKey(panelId)
 }
 

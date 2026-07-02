@@ -11,6 +11,7 @@ import io.pulsekit.core.FpsSnapshot
 import io.pulsekit.core.FrameDropped
 import io.pulsekit.core.MemorySample
 import io.pulsekit.core.PulseEvent
+import io.pulsekit.core.RecompositionStat
 import io.pulsekit.core.StartupMetric
 import io.pulsekit.runtime.Pulse
 import java.text.SimpleDateFormat
@@ -64,6 +65,7 @@ fun buildPanels(
     fps: FpsSnapshot = FpsSnapshot.EMPTY,
     memory: List<MemorySample> = emptyList(),
     startup: StartupMetric? = null,
+    recompositions: List<RecompositionStat> = emptyList(),
 ): List<PulsePanel> = listOf(
     PulsePanel(
         id = "app_info",
@@ -127,6 +129,15 @@ fun buildPanels(
         summary = startup?.let { "${it.totalMs} ms to first frame" } ?: "measuring…",
         available = true,
         properties = emptyList(), // opens the Startup timeline screen
+    ),
+    PulsePanel(
+        id = "recompositions",
+        title = "Recompositions",
+        badge = "Rc",
+        summary = recompositions.firstOrNull()?.let { "${it.tag} · ${it.count}×" }
+            ?: "none tracked",
+        available = true,
+        properties = emptyList(), // opens the Recompositions screen
     ),
     PulsePanel(
         id = "api",
