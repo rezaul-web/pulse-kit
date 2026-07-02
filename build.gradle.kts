@@ -7,3 +7,11 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.compose.compiler) apply false
 }
+
+// Publishable coordinates for every module (io.pulsekit:<module>:<version>).
+// Enables consuming PulseKit from another project via a Gradle composite build
+// or `publishToMavenLocal`. See docs/INTEGRATION.md.
+subprojects {
+    group = "io.pulsekit"
+    version = "0.1.0"
+}

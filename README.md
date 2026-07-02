@@ -34,6 +34,23 @@ A buildable Kotlin Multiplatform skeleton with the core plugin/event architectur
 
 The debug APK lands at `sample/build/outputs/apk/debug/sample-debug.apk`.
 
+## Using PulseKit in another project
+
+Publish to your local Maven and depend on it by coordinate:
+
+```bash
+./gradlew publishToMavenLocal            # publishes io.pulsekit:*:0.1.0
+```
+```kotlin
+// consumer app (compileSdk 36, AGP ≥ 8.9.1, minSdk 24)
+dependencies {
+    implementation("io.pulsekit:pulse-android:0.1.0")
+    implementation("io.pulsekit:pulse-network:0.1.0") // optional, OkHttp capture
+}
+```
+Full instructions (Maven Local, composite build, prebuilt AAR, integration & requirements):
+see [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
+
 ## Integration (current API)
 
 ```kotlin
