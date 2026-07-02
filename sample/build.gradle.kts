@@ -67,6 +67,9 @@ dependencies {
 val generatePulseProvenance by tasks.registering {
     val outFile = pulseProvenanceDir.map { it.file("pulsekit_provenance.json") }
     outputs.file(outFile)
+    // Git state isn't a declared Gradle input, so without this the task would be
+    // cached UP-TO-DATE and the provenance would go stale. Always regenerate.
+    outputs.upToDateWhen { false }
     val root = repoRoot
     doLast {
         fun git(vararg args: String): String = try {
