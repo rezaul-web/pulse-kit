@@ -36,3 +36,15 @@ data class CrashDetailKey(val crashId: String) : NavKey
 /** Opens the Commit History (build provenance) screen. */
 @Serializable
 data object CommitHistoryKey : NavKey
+
+/** Opens the FPS / Jank metrics screen. */
+@Serializable
+data object FpsKey : NavKey
+
+/** Opens the Memory metrics screen. */
+@Serializable
+data object MemoryKey : NavKey
+
+/** Opens the Startup timeline screen. */
+@Serializable
+data object StartupKey : NavKey

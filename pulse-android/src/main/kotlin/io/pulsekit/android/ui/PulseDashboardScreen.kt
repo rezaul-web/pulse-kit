@@ -88,12 +88,18 @@ fun PulseDashboard(
     val transactions by Pulse.network.collectAsState()
     val crashes by Pulse.crashes.collectAsState()
     val provenance = Pulse.provenance
+    val fps by Pulse.fps.collectAsState()
+    val memory by Pulse.memory.collectAsState()
+    val startup by Pulse.startup.collectAsState()
     val panels = buildPanels(
         context = context,
         stats = stats,
         apiCount = transactions.size,
         crashCount = crashes.size,
         provenance = provenance,
+        fps = fps,
+        memory = memory,
+        startup = startup,
     )
 
     val backStack = rememberNavBackStack(HomeKey)
@@ -146,6 +152,15 @@ fun PulseDashboard(
             entry<CommitHistoryKey> {
                 CommitHistoryScreen(provenance = provenance, onBack = { backStack.removeLastOrNull() })
             }
+            entry<FpsKey> {
+                FpsScreen(snapshot = fps, onBack = { backStack.removeLastOrNull() })
+            }
+            entry<MemoryKey> {
+                MemoryScreen(samples = memory, onBack = { backStack.removeLastOrNull() })
+            }
+            entry<StartupKey> {
+                StartupScreen(metric = startup, onBack = { backStack.removeLastOrNull() })
+            }
         },
     )
 }
@@ -155,6 +170,9 @@ private fun destinationFor(panelId: String): NavKey = when (panelId) {
     "api" -> ApiListKey
     "crashes" -> CrashListKey
     "commits" -> CommitHistoryKey
+    "fps" -> FpsKey
+    "memory" -> MemoryKey
+    "startup" -> StartupKey
     else -> PanelKey(panelId)
 }
 

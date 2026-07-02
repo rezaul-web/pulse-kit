@@ -6,8 +6,12 @@ import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.util.DisplayMetrics
 import androidx.core.content.pm.PackageInfoCompat
+import io.pulsekit.core.BuildProvenance
+import io.pulsekit.core.FpsSnapshot
 import io.pulsekit.core.FrameDropped
+import io.pulsekit.core.MemorySample
 import io.pulsekit.core.PulseEvent
+import io.pulsekit.core.StartupMetric
 import io.pulsekit.runtime.Pulse
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -56,7 +60,10 @@ fun buildPanels(
     stats: LiveStats,
     apiCount: Int = 0,
     crashCount: Int = 0,
-    provenance: io.pulsekit.core.BuildProvenance = io.pulsekit.core.BuildProvenance.EMPTY,
+    provenance: BuildProvenance = BuildProvenance.EMPTY,
+    fps: FpsSnapshot = FpsSnapshot.EMPTY,
+    memory: List<MemorySample> = emptyList(),
+    startup: StartupMetric? = null,
 ): List<PulsePanel> = listOf(
     PulsePanel(
         id = "app_info",
@@ -101,12 +108,25 @@ fun buildPanels(
         id = "fps",
         title = "FPS / Jank",
         badge = "Fp",
-        summary = "${stats.droppedFrames} drops",
+        summary = "${fps.fps} fps · ${fps.jankPercent}% jank",
         available = true,
-        properties = listOf(
-            PulseProperty("Dropped frames", stats.droppedFrames.toString()),
-            PulseProperty("Collector", "Choreographer (16.67ms budget)"),
-        ),
+        properties = emptyList(), // opens the FPS metrics screen
+    ),
+    PulsePanel(
+        id = "memory",
+        title = "Memory",
+        badge = "Mm",
+        summary = memory.lastOrNull()?.let { "${it.usedBytes / (1024 * 1024)} MB used" } ?: "sampling…",
+        available = true,
+        properties = emptyList(), // opens the Memory metrics screen
+    ),
+    PulsePanel(
+        id = "startup",
+        title = "Startup",
+        badge = "St",
+        summary = startup?.let { "${it.totalMs} ms to first frame" } ?: "measuring…",
+        available = true,
+        properties = emptyList(), // opens the Startup timeline screen
     ),
     PulsePanel(
         id = "api",

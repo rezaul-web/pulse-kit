@@ -4,13 +4,16 @@ import android.view.Choreographer
 import io.pulsekit.core.FrameDropped
 import io.pulsekit.plugin.PluginScope
 import io.pulsekit.plugin.PulsePlugin
+import io.pulsekit.runtime.Pulse
+import kotlinx.coroutines.delay
 
 /**
- * Minimal Choreographer-driven FPS collector.
+ * Choreographer-driven FPS/jank collector.
  *
- * Emits a [FrameDropped] event whenever a frame exceeds the 16.67 ms budget.
- * This is a Phase-1 skeleton; jank-percentage and worst-frame aggregation are
- * added in Phase 3 per the architecture spec.
+ * Feeds every frame's duration into the (allocation-free) [io.pulsekit.core.FrameAggregator]
+ * via [Pulse.recordFrame], emits a [FrameDropped] event for frames over budget, and
+ * ticks [Pulse.publishFrameStats] on a throttled timer so the panel updates ~2×/sec
+ * without recomputing on the frame-critical path.
  */
 class FpsPlugin(
     private val sessionIdProvider: () -> String?,
@@ -23,11 +26,18 @@ class FpsPlugin(
 
     private companion object {
         const val FRAME_BUDGET_MS = 1000.0 / 60.0
+        const val PUBLISH_INTERVAL_MS = 500L
     }
 
     override fun initialize(scope: PluginScope) {
         this.scope = scope
         Choreographer.getInstance().postFrameCallback(this)
+        scope.launch {
+            while (true) {
+                delay(PUBLISH_INTERVAL_MS)
+                Pulse.publishFrameStats()
+            }
+        }
     }
 
     override fun doFrame(frameTimeNanos: Long) {
@@ -35,6 +45,7 @@ class FpsPlugin(
         lastFrameTimeNanos = frameTimeNanos
         if (previous != 0L) {
             val frameMs = (frameTimeNanos - previous) / 1_000_000.0
+            Pulse.recordFrame(frameMs)
             if (frameMs > FRAME_BUDGET_MS) {
                 val sink = scope?.eventSink
                 val session = sessionIdProvider()

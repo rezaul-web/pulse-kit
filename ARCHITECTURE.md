@@ -382,18 +382,17 @@ Each spec lists **Purpose**, **Key APIs**, **Platform**, **Dependencies**, and *
 - **Status (implemented):** the interceptor records each round-trip as an immutable `NetworkTransaction` (in `pulse-core`) via `Pulse.recordNetwork(...)`, held by an in-memory `NetworkRecorder` and exposed as `Pulse.network: StateFlow<List<NetworkTransaction>>`. It reads the request body from a copy and *peeks* the response (never consuming it); default headers `Authorization`/`Cookie`/`Set-Cookie`/`Proxy-Authorization` are redacted; bodies are capped (256 KB) and truncated with a marker. The dashboard renders a request list → tabbed detail (**cURL · Request · Response**) with JSON pretty-printing. See `docs/DASHBOARD.md` §11.
 - **Phase 3:** SQLDelight-backed persistence, Ktor-client capture, and `ApiCallStarted`/`ApiCallCompleted` event emission.
 
-### 7.5 `pulse-memory` (KMP where possible)
-- **Purpose:** Heap used/max, GC counts, allocation spikes, large-bitmap detection (Android), pressure warnings.
-- **Done when:** Emits `MemoryUpdated` on the sampling interval; warns above threshold; Android bitmap hook behind expect/actual.
+### 7.5 `pulse-memory` (Android now; KMP later) ✅ *implemented*
+- **Purpose:** Heap used/max, native heap, allocation spikes, (future) large-bitmap detection & pressure warnings.
+- **Status:** `MemoryPlugin` samples JVM + native heap on `samplingIntervalMs` off the frame path, recording `MemorySample`s into a rolling window (`Pulse.memory`). Panel shows current/native/max/peak + a used-heap sparkline. GC counts / bitmap hooks are follow-ups.
 
-### 7.6 `pulse-startup` (Android)
-- **Purpose:** Waterfall of `Application.onCreate` → splash → first activity → first draw → time-to-interactive.
-- **Key API:** `PulseStartup.markInteractive()` for the TTI signal; a `ContentProvider`/`Initializer` captures process start.
-- **Done when:** Produces an ordered `StartupMetric` timeline; overhead < 30 ms asserted in benchmark.
+### 7.6 `pulse-startup` (Android) ✅ *implemented*
+- **Purpose:** Waterfall of process start → `Application.onCreate` → first activity → first frame.
+- **Status:** `PulseStartup` captures the timeline (process start via `Process.getStartUptimeMillis`, `onCreate`, first-activity resume, first frame via a decor-view `post`) into `StartupMetric` (`Pulse.startup`). Panel renders total time-to-first-frame + a phase waterfall. `markInteractive()` (TTI) and the `Initializer` are follow-ups.
 
-### 7.7 `pulse-fps` (Android)
+### 7.7 `pulse-fps` (Android) ✅ *implemented*
 - **Purpose:** `Choreographer`-driven FPS: current/avg, worst frame, dropped frames, jank %.
-- **Done when:** Emits `FrameDropped` for frames over budget; aggregates without allocating per-frame garbage on the main thread (object pooling / primitive buffers).
+- **Status:** `FpsPlugin` feeds each frame into `FrameAggregator` — a **primitive `DoubleArray` ring buffer** so `record()` is allocation-free on the main thread — and publishes a throttled `FpsSnapshot` (~2×/sec) to `Pulse.fps`. Emits `FrameDropped` for over-budget frames. Panel shows the stats + a frame-time sparkline with the 16.67 ms budget line.
 
 ### 7.8 `pulse-anr` (Android)
 - **Purpose:** Watchdog thread pings main; if unresponsive beyond threshold, capture main-thread stack + context.

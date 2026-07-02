@@ -6,11 +6,17 @@ import io.pulsekit.core.CrashRecorder
 import io.pulsekit.core.CrashReport
 import io.pulsekit.core.CustomEvent
 import io.pulsekit.core.EventBus
+import io.pulsekit.core.FpsSnapshot
+import io.pulsekit.core.FrameAggregator
 import io.pulsekit.core.InMemoryCrashRecorder
 import io.pulsekit.core.InMemoryNetworkRecorder
+import io.pulsekit.core.MemoryRecorder
+import io.pulsekit.core.MemorySample
 import io.pulsekit.core.NetworkRecorder
 import io.pulsekit.core.NetworkTransaction
 import io.pulsekit.core.PulseConfig
+import io.pulsekit.core.StartupHolder
+import io.pulsekit.core.StartupMetric
 import io.pulsekit.core.PulseDispatchers
 import io.pulsekit.core.PulseEvent
 import io.pulsekit.core.SessionId
@@ -36,6 +42,9 @@ object Pulse {
     private var initialized: Boolean = false
     private var networkRecorder: NetworkRecorder = InMemoryNetworkRecorder()
     private var crashRecorder: CrashRecorder = InMemoryCrashRecorder()
+    private var frameAggregator: FrameAggregator = FrameAggregator()
+    private var memoryRecorder: MemoryRecorder = MemoryRecorder()
+    private val startupHolder: StartupHolder = StartupHolder()
 
     /** Read-only stream of all events for embedding UI or custom tooling. */
     val events: Flow<PulseEvent> get() = bus.events
@@ -49,6 +58,15 @@ object Pulse {
     /** Build-time git/build provenance of the running binary (see `ARCHITECTURE.md` §6.5). */
     var provenance: BuildProvenance = BuildProvenance.EMPTY
         private set
+
+    /** Throttled frame-timing stats (FPS/Jank panel). */
+    val fps: StateFlow<FpsSnapshot> get() = frameAggregator.snapshot
+
+    /** Rolling window of memory samples (Memory panel). */
+    val memory: StateFlow<List<MemorySample>> get() = memoryRecorder.samples
+
+    /** Cold-start timeline, captured once per process (Startup panel). */
+    val startup: StateFlow<StartupMetric?> get() = startupHolder.metric
 
     /**
      * Initialize PulseKit. Idempotent — a second call is a logged no-op.
@@ -69,6 +87,8 @@ object Pulse {
         bus = EventBus()
         networkRecorder = InMemoryNetworkRecorder()
         crashRecorder = InMemoryCrashRecorder()
+        frameAggregator = FrameAggregator()
+        memoryRecorder = MemoryRecorder()
         pluginManager = PluginManager(
             dispatchers = dispatchers,
             eventSink = bus,
@@ -125,6 +145,26 @@ object Pulse {
     /** Set the build provenance read from the generated resource (see `ARCHITECTURE.md` §6.5). */
     fun setProvenance(value: BuildProvenance) {
         provenance = value
+    }
+
+    /** Record one frame's duration (ms). Allocation-free; call from the frame callback. */
+    fun recordFrame(frameMs: Double) {
+        frameAggregator.record(frameMs)
+    }
+
+    /** Recompute + emit the FPS snapshot. Call on a throttled timer, not per frame. */
+    fun publishFrameStats() {
+        frameAggregator.publish()
+    }
+
+    /** Record a periodic memory sample. */
+    fun recordMemory(sample: MemorySample) {
+        memoryRecorder.record(sample)
+    }
+
+    /** Set the cold-start timeline (captured once per process). */
+    fun setStartup(metric: StartupMetric) {
+        startupHolder.set(metric)
     }
 
     /** Register a custom feature plugin at runtime. */

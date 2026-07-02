@@ -26,12 +26,20 @@ object PulseAndroid {
         val app = context.applicationContext
         Pulse.initialize(app, configure = configure)
 
-        // Register Android feature plugins. In later phases this is driven by the
-        // config flags through the DI graph; kept explicit here for clarity.
-        Pulse.registerPlugin(FpsPlugin(sessionIdProvider = { Pulse.activeSession()?.value }))
-
         // Resolve the same config the runtime built so we can honour its flags here.
         val config = PulseConfig().apply(configure)
+
+        // Register Android feature plugins per the config flags. In later phases this
+        // is driven through the DI graph; kept explicit here for clarity.
+        if (config.enableFPS) {
+            Pulse.registerPlugin(FpsPlugin(sessionIdProvider = { Pulse.activeSession()?.value }))
+        }
+        if (config.enableMemory) {
+            Pulse.registerPlugin(MemoryPlugin(samplingIntervalMs = config.samplingIntervalMs))
+        }
+        if (config.enableStartup) {
+            PulseStartup.capture(app)
+        }
 
         // Crash capture: install the chaining uncaught handler and seed from disk.
         if (config.enableCrash) {

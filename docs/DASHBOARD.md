@@ -369,7 +369,38 @@ Both are full features, wired like Network (model in `pulse-core`, capture/read 
 - NavKeys: `CrashListKey` / `CrashDetailKey` / `CommitHistoryKey`; the grid routes the
   `crashes` and `commits` tiles to them via `destinationFor()`.
 
-## 13. Known limitations / TODO
+## 13. Performance metrics (FPS · Memory · Startup)
+
+Three dedicated metric screens with charts, backed by lightweight collectors.
+
+### FPS / Jank (`FpsPlugin` → `FrameAggregator`)
+- `FpsPlugin` posts a Choreographer callback; each frame calls `Pulse.recordFrame(ms)`.
+- **`FrameAggregator` uses a primitive `DoubleArray` ring buffer**, so `record()` is
+  **allocation-free on the main thread** (the architecture's hard perf rule). A throttled
+  loop (~2×/sec) calls `publish()` which recomputes an `FpsSnapshot` (fps, avg, worst
+  frame, jank %, dropped, recent frame durations) into `Pulse.fps`.
+- Screen: big current-fps number + a frame-time sparkline (with the 16.67 ms budget as a
+  dashed threshold line) + detail stats.
+
+### Memory (`MemoryPlugin`)
+- Samples `Runtime` (used/max heap) + `Debug.getNativeHeapAllocatedSize()` every
+  `samplingIntervalMs` in the plugin's supervised scope (off the frame path), recording
+  `MemorySample`s into a rolling window (`Pulse.memory`).
+- Screen: current used + a used-heap sparkline (shows the GC sawtooth) + used/native/max/peak.
+
+### Startup (`PulseStartup`)
+- Captures process start (`Process.getStartUptimeMillis`), `Application.onCreate`, first
+  activity resume, and first frame (a `post` on the first resumed activity's decor view),
+  into a `StartupMetric` (`Pulse.startup`), captured once per process.
+- Screen: total time-to-first-frame + a phase waterfall (proportional bars).
+
+### Charts
+Charts are native Compose `Canvas` micro-viz in the existing Material 3 palette
+(single primary-accent line, dashed error-color threshold) — see `Sparkline` in
+`MetricsScreens.kt`. NavKeys: `FpsKey` / `MemoryKey` / `StartupKey`; gated by
+`enableFPS` / `enableMemory` / `enableStartup`.
+
+## 14. Known limitations / TODO
 
 - Long device model names truncate on the tile (full value shows in detail).
 - Compose `@Preview`s are not yet added for the grid/detail (device-only for now).
