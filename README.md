@@ -12,9 +12,9 @@ A buildable Kotlin Multiplatform skeleton with the core plugin/event architectur
 
 | Module | Type | Purpose |
 |---|---|---|
-| `pulse-core` | KMP (android + jvm) | Events, `EventBus`, dispatchers, config. No platform APIs. |
-| `pulse-plugin` | KMP | `PulsePlugin` / `PluginScope` contracts. |
-| `pulse-runtime` | KMP | Public `Pulse` API, `PluginManager`, `expect/actual` platform context. |
+| `pulse-core` | KMP (android + jvm + **ios**) | Events, `EventBus`, dispatchers, config, data models. No platform APIs. |
+| `pulse-plugin` | KMP (android + jvm + **ios**) | `PulsePlugin` / `PluginScope` contracts. |
+| `pulse-runtime` | KMP (android + jvm + **ios**) | Public `Pulse` API, `PluginManager`, `expect/actual` platform context. |
 | `pulse-android` | Android lib | `PulseAndroid` facade, Choreographer `FpsPlugin`, notification launcher + Compose dashboard. |
 | `pulse-network` | Android lib | `PulseOkHttpInterceptor` — captures HTTP calls for the API Requests inspector. |
 | `sample` | Android app | Compose app that initializes PulseKit, tracks events, makes demo API calls, and requests the notification permission. |

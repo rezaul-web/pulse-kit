@@ -430,6 +430,15 @@ Each spec lists **Purpose**, **Key APIs**, **Platform**, **Dependencies**, and *
 
 ### 7.15 Future platform modules
 - `pulse-ios`, `pulse-desktop` — actuals only; **must not** require changing core or public API.
+- **iOS core targets — done ✅.** `pulse-core`, `pulse-plugin`, and `pulse-runtime` now
+  declare `iosArm64` / `iosSimulatorArm64` / `iosX64` and **compile for iOS** (Kotlin/Native)
+  with iOS `actual`s: `ioDispatcher = Dispatchers.Default`, `PlatformContext` placeholder,
+  `nowMs()` via `kotlin.system.getTimeMillis()`. This validates that `commonMain` (event bus,
+  session, config, and all data models — network/crash/provenance/fps/memory/startup/recomposition)
+  is genuinely portable **without any change to the public `Pulse` API**. Still Android-only:
+  the collectors (FPS/memory/network/crash/startup) and the Compose dashboard — those are the
+  remaining iOS work (CADisplayLink, URLSession, `NSSetUncaughtExceptionHandler`, Compose
+  Multiplatform UI), none of which touch the shared core.
 
 ### 7.16 Support modules
 - `sample/` — reference Android app exercising every feature.
