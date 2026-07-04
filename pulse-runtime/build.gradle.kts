@@ -11,9 +11,15 @@ kotlin {
         publishLibraryVariants("release")
     }
     jvm()
-    iosArm64()
-    iosSimulatorArm64()
-    iosX64()
+    listOf(iosArm64(), iosSimulatorArm64(), iosX64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "PulseKit"
+            isStatic = true
+            // Expose the pulse-core / pulse-plugin API (Pulse, events, data models) to Swift.
+            export(project(":pulse-core"))
+            export(project(":pulse-plugin"))
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {

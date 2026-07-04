@@ -1,0 +1,27 @@
+name: PulseKitSample
+options:
+  bundleIdPrefix: io.pulsekit
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  PulseKitSample:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.pulsekit.sample.ios
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        ENABLE_BITCODE: NO
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(PROJECT_DIR)/../pulse-runtime/build/bin/iosSimulatorArm64/debugFramework
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -framework
+          - PulseKit
+    dependencies:
+      - framework: ../pulse-runtime/build/bin/iosSimulatorArm64/debugFramework/PulseKit.framework
+        embed: false
